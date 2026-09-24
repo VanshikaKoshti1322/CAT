@@ -1,3 +1,302 @@
+<script>
+// ==================== ARTICLE PAGINATION (same functionality/CSS as All Cases) ====================
+
+let articleRowsPerPage = 8;
+let articleCurrentPage = 1;
+
+function getAllArticleCards() {
+    return document.querySelectorAll("#articleGrid .kb-card");
+}
+
+function showArticlePage(page) {
+    var allCards = Array.prototype.slice.call(getAllArticleCards());
+    var totalRecords = allCards.length;
+
+    var paginationEl = document.getElementById("articlePagination");
+
+    if (totalRecords === 0) {
+        if (paginationEl) {
+            paginationEl.innerHTML = "";
+            paginationEl.style.display = "none";
+        }
+        return;
+    }
+
+    var totalPages = Math.ceil(totalRecords / articleRowsPerPage) || 1;
+
+    if (page < 1) {
+        page = 1;
+    }
+
+    if (page > totalPages) {
+        page = totalPages;
+    }
+
+    articleCurrentPage = page;
+
+    var start = (articleCurrentPage - 1) * articleRowsPerPage;
+    var end = start + articleRowsPerPage;
+
+    allCards.forEach(function (card, index) {
+        if (index >= start && index < end) {
+            card.classList.remove("article-card-hidden");
+        } else {
+            card.classList.add("article-card-hidden");
+        }
+    });
+
+    renderArticlePagination(totalPages, totalRecords);
+}
+
+function renderArticlePagination(totalPages, totalRecords) {
+    var paginationEl = document.getElementById("articlePagination");
+    if (!paginationEl) return;
+
+    if (totalRecords === 0) {
+        paginationEl.innerHTML = "";
+        return;
+    }
+
+    var startRecord = ((articleCurrentPage - 1) * articleRowsPerPage) + 1;
+    var endRecord = Math.min(articleCurrentPage * articleRowsPerPage, totalRecords);
+
+    var html = "";
+
+    html += `
+        <div class="pagination-footer">
+            <div class="record-info">
+                Viewing ${startRecord}-${endRecord} of ${totalRecords}
+            </div>
+
+            <div class="pagination-buttons">
+
+                <button class="page-btn prev-btn"
+                    ${articleCurrentPage === 1 ? "disabled" : ""}
+                    data-page="${articleCurrentPage - 1}">
+                    &#10094;
+                </button>
+    `;
+
+    // Always show first page
+    html += `
+        <button class="page-btn page-number ${articleCurrentPage === 1 ? "active" : ""}"
+            data-page="1">
+            1
+        </button>
+    `;
+
+    let startPage = Math.max(2, articleCurrentPage - 1);
+    let endPage = Math.min(totalPages - 1, articleCurrentPage + 1);
+
+    // Beginning pages
+    if (articleCurrentPage <= 3) {
+        startPage = 2;
+        endPage = Math.min(4, totalPages - 1);
+    }
+
+    // Ending pages
+    if (articleCurrentPage >= totalPages - 2) {
+        startPage = Math.max(2, totalPages - 3);
+        endPage = totalPages - 1;
+    }
+
+    // Left ellipsis
+    if (startPage > 2) {
+        html += `
+            <button class="page-btn page-ellipsis"
+                data-page="${startPage - 2}">
+                ...
+            </button>
+        `;
+    }
+
+    // Middle pages
+    for (let i = startPage; i <= endPage; i++) {
+        html += `
+            <button class="page-btn page-number ${articleCurrentPage === i ? 'active' : ''}"
+                data-page="${i}">
+                ${i}
+            </button>
+        `;
+    }
+
+    // Right ellipsis
+    if (endPage < totalPages - 1) {
+        html += `
+            <button class="page-btn page-ellipsis"
+                data-page="${endPage + 2}">
+                ...
+            </button>
+        `;
+    }
+
+    // Last page
+    if (totalPages > 1) {
+        html += `
+            <button class="page-btn page-number ${articleCurrentPage === totalPages ? 'active' : ''}"
+                data-page="${totalPages}">
+                ${totalPages}
+            </button>
+        `;
+    }
+
+    html += `
+                <button class="page-btn next-btn"
+                    ${articleCurrentPage === totalPages ? "disabled" : ""}
+                    data-page="${articleCurrentPage + 1}">
+                    &#10095;
+                </button>
+            </div>
+        </div>
+    `;
+
+    paginationEl.innerHTML = html;
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+    showArticlePage(1);
+});
+
+document.addEventListener("click", function (e) {
+    var target = e.target.closest(
+        "#articlePagination .page-number, #articlePagination .page-ellipsis"
+    );
+
+    if (target) {
+        showArticlePage(parseInt(target.getAttribute("data-page"), 10));
+        return;
+    }
+
+    var prevBtn = e.target.closest("#articlePagination .prev-btn");
+    if (prevBtn && articleCurrentPage > 1) {
+        showArticlePage(articleCurrentPage - 1);
+        return;
+    }
+
+    var nextBtn = e.target.closest("#articlePagination .next-btn");
+    if (nextBtn) {
+        var totalPages = Math.ceil(getAllArticleCards().length / articleRowsPerPage) || 1;
+        if (articleCurrentPage < totalPages) {
+            showArticlePage(articleCurrentPage + 1);
+        }
+    }
+});
+</script>
+
+/* ================= PAGINATION (same as All Cases page) ================= */
+
+.pagination-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    margin-top: 10px;
+}
+
+.record-info {
+    color: #555;
+    font-size: 14px;
+}
+
+.pagination-buttons {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.page-btn {
+    border: none;
+    background: transparent;
+    color: #0067b8;
+    cursor: pointer;
+    min-width: 30px;
+    height: 30px;
+    border-radius: 4px;
+}
+
+.page-btn:hover:not(:disabled) {
+    background: #f3f2f1;
+}
+
+.page-btn.active {
+    background: #ffc72c;
+    color: #000;
+    font-weight: 600;
+}
+
+.page-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.page-ellipsis {
+    font-weight: bold;
+}
+
+.custom-pagination{
+    display:flex;
+    justify-content:flex-end;
+    align-items:center;
+    gap:6px;
+    flex-wrap:wrap;
+    margin-top:20px;
+    margin-bottom:70px;
+}
+
+.page-btn{
+    min-width:32px;
+    height:32px;
+    border:none;
+    border-radius:6px;
+    background:#f5f5f5;
+    cursor:pointer;
+    font-weight:600;
+    font-size:13px;
+    transition:all .3s ease;
+}
+
+.page-btn:hover{
+    background:#ffcd11;
+}
+
+.page-btn.active{
+    background:#ffcd11;
+    color:#000;
+}
+
+.page-btn:disabled{
+    opacity:.4;
+    cursor:not-allowed;
+}
+
+/* Cards use display:flex !important, so the hidden state needs matching specificity to win */
+.kb-card.article-card-hidden {
+    display: none !important;
+}
+
+@media(max-width:768px){
+
+   .custom-pagination{
+    gap:5px;
+    margin-top:20px !important;
+    margin-bottom: 30px !important;
+    position:relative;
+    z-index:999;
+   }
+   .page-btn{
+    min-width: 28px;
+    height:28px;
+    font-size:11px;
+   }
+
+}
+
+
+
+
+
+
+
 {% if totalPages > 1 %}
 
 {% assign startRecord = currentPage | minus: 1 | times: pageSizeNumber | plus: 1 %}
