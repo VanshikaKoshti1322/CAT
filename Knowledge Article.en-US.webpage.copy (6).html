@@ -1,0 +1,1828 @@
+<div class="row sectionBlockLayout text-start" style="min-height: auto; padding: 8px;">
+  <div class="container" style="display: flex; flex-wrap: nowrap;">
+
+    <script>
+      const urlParams = new URLSearchParams(window.location.search);
+      window.currentProduct = urlParams.get("product") || "";
+      window.currentDcn = urlParams.get("dcn") || "";
+      window.currentSn = urlParams.get("sn") || "";
+
+      window.languageCode = window.location.pathname.split('/').filter(Boolean)[0];
+
+      if (window.languageCode) {
+        sessionStorage.setItem("languageCode", window.languageCode);
+      }
+
+      if (window.currentProduct) {
+        sessionStorage.setItem("currentProduct", window.currentProduct);
+      }
+      if (window.currentDcn) {
+        sessionStorage.setItem("currentDcn", window.currentDcn);
+      }
+
+      if (window.currentSn) {
+        sessionStorage.setItem("currentSn", window.currentSn);
+      }
+
+    </script>
+
+    <!--Persona filter-->
+    {% assign userPersona = 'Guest' %}
+    
+    {% if user %}
+    {% for role in user.roles %}
+    
+    {% assign roleText = role | append: '' %}
+    
+    {% if roleText contains 'Cat_Internal Customer Persona Role' %}
+    {% assign userPersona = 'Internal' %}
+    {% break %}
+    
+    {% elsif roleText contains 'Cat_Customer Persona Role' %}
+    {% assign userPersona = 'Customer' %}
+    {% break %}
+    
+    {% elsif roleText contains 'Cat_Dealer Persona Role' %}
+    {% assign userPersona = 'Dealer' %}
+    {% break %}
+    
+    {% endif %}
+    
+    {% endfor %}
+    {% endif %}
+    
+    {% assign personaValue = '' %}
+    
+    {% case userPersona %}
+    {% when 'Customer' %}
+    {% assign personaValue = '100000000' %}
+    
+    {% when 'Dealer' %}
+    {% assign personaValue = '100000001' %}
+    
+    {% when 'Guest' %}
+    {% assign personaValue = '100000002' %}
+
+    {% when 'Internal' %}
+    {% assign personaValue = '100000003' %}
+    {% endcase %}
+    <!--if articles are less than 8-->
+    <!-- {% assign visibleCount = 0 %}
+    
+    {% for article in articles.results.entities %}
+    {% if persona matches %}
+    {% assign visibleCount = visibleCount | plus: 1 %}
+    {% endif %} 
+    {% endfor %} -->
+    <!--if articles are less than 8-->
+    <!--Persona filter end-->
+
+    <!-- Category Filter -->
+    {% assign selectedCategories = request.params['categoryids'] | default:'' | split: ',' %}
+
+    {% fetchxml allcategories %}
+    <fetch>
+      <entity name="category">
+
+        <attribute name="title" />
+        <attribute name="categoryid" />
+        <attribute name="parentcategoryid" />
+        <!-- Category to display alphabetically -->
+        <order attribute="title" descending="false" /> 
+
+      </entity>
+    </fetch>
+    {% endfetchxml %}
+
+    {% fetchxml allArticleCategories %}
+      <fetch distinct="true">
+      <entity name="knowledgearticle">
+      <attribute name="knowledgearticleid" />
+      <filter type="and">
+        <condition attribute="statuscode" operator="eq" value="7" />
+        <condition attribute="cat_ispublicfacing" operator="eq" value="1" />
+        <condition attribute="cat_persona" operator="contain-values">
+          <value>{{ personaValue }}</value>
+        </condition>
+      </filter>
+      <link-entity name="knowledgearticlescategories"
+                      from="knowledgearticleid"
+                      to="knowledgearticleid"
+                      intersect="true">
+      <attribute name="categoryid" alias="categoryid" />
+      </link-entity>
+      </entity>
+      </fetch>
+    {% endfetchxml %}
+
+    <div id="filterSidebar" class="kb-sidebar">
+
+      <div class="filter-header">
+
+        <h3>Filter By</h3>
+        <div class="filter-actions">
+        <!-- <a href="#" class="top-clear-link" onclick="clearFilters(); return false;">Clear All</a> -->
+         <a id="clearAllLink"
+   href="#"
+   class="top-clear-link"
+   onclick="clearFilters(); return false;">
+    Clear All
+</a>
+        <span id="closeFilterPanel" class="mobile-close"> x </span>
+        </div>
+      </div>
+
+      <div class="filter-section">
+
+        <h4>Product / All Categories</h4>
+
+        {% for parent in allcategories.results.entities %}
+
+        {% if parent.parentcategoryid == null %}
+        
+          {% assign hasChildren = false %}
+          {% assign childCategoryIds = "" %}
+          {% assign grandChildCategoryIds = "" %}
+
+          {% for testChild in allcategories.results.entities %}
+          {% if testChild.parentcategoryid.id == parent.categoryid %}
+          {% assign hasChildren = true %}
+          {% assign childCategoryIds = childCategoryIds| append:testChild.categoryid| append:"," %}
+          {% for testGrandChild in allcategories.results.entities %}
+          {% if testGrandChild.parentcategoryid.id == testChild.categoryid %}
+          {% assign grandChildCategoryIds = grandChildCategoryIds| append:testGrandChild.categoryid| append:"," %}
+          {% endif %}
+          {% endfor %}
+          {% endif %}
+          {% endfor %}
+
+          {% assign articleIds = "|" %}
+          {% for rel in allArticleCategories.results.entities %}
+          {% assign includeArticle = false %}
+          {% if rel.categoryid == parent.categoryid %}
+          {% assign includeArticle = true %}
+          {% endif %}
+          {% for childCheck in allcategories.results.entities %}
+          {% if childCheck.parentcategoryid.id == parent.categoryid %}
+          {% if rel.categoryid == childCheck.categoryid %}
+          {% assign includeArticle = true %}
+          {% endif %}
+          {% for grandchildCheck in allcategories.results.entities %}
+          {% if grandchildCheck.parentcategoryid.id == childCheck.categoryid %}
+          {% if rel.categoryid == grandchildCheck.categoryid %}
+          {% assign includeArticle = true %}
+          {% endif %}
+          {% endif %}
+          {% endfor %}
+          {% endif %}
+          {% endfor %}
+          {% if includeArticle %}
+          {% assign articleKey = "|" | append: rel.knowledgearticleid | append: "|" %}
+          {% unless articleIds contains articleKey %}
+          {% assign articleIds = articleIds | append: rel.knowledgearticleid | append: "|" %}
+          {% endunless %}
+          {% endif %}
+          {% endfor %}
+          {% assign countString = articleIds | remove_first:"|" | remove_last:"|" %}
+          {% if countString == "" %}
+          {% assign count = 0 %}
+          {% else %}
+          {% assign count = countString | split:"|" | size %}
+          {% endif %}
+
+          {% assign showParent = false %}
+          {% if count > 0 %}
+              {% assign showParent = true %}
+          {% endif %}
+
+          {% if showParent %}
+  
+          <div class="category-node">
+            <!-- Parent -->
+            <div class="category-row">
+
+              {% if hasChildren %}
+
+              <span class="expand-icon" onclick="toggleCategory('cat-{{ parent.categoryid }}', this)">
+                <i class="fa fa-chevron-right"></i>
+              </span>
+
+              {% else %}
+
+              <span class="expand-placeholder"></span>
+
+              {% endif %}
+
+              <label class="filter-item">
+
+                <input type="checkbox" class="cat-checkbox parent-cat" data-id="{{ parent.categoryid }}" data-parent=""
+                  data-title="{{parent.title | downcase}}" onchange="categoryChanged(this)" 
+                  {% if selectedCategories contains parent.categoryid %} 
+                  checked 
+                  {% endif %}>
+
+                <div class="category-text">
+                  <span class="category-title">
+                    {{ parent.title }}
+                  </span>
+                  <span class="category-count">
+                    {{ count }}
+                  </span>
+                </div>
+              </label>
+            </div> <!-- Parent Category Row -->
+          
+            <!-- Children -->
+            
+            <div class="child-container" data-parent="{{ parent.categoryid }}" id="cat-{{ parent.categoryid }}">
+              {% for child in allcategories.results.entities %}
+              {% if child.parentcategoryid.id == parent.categoryid %}
+              <div class="category-node">
+
+                <!-- Does this child have grandchildren? -->
+                
+                {% assign childHasChildren = false %}
+                {% for grandCheck in allcategories.results.entities %}
+                {% if grandCheck.parentcategoryid.id == child.categoryid %}
+                {% assign childHasChildren = true %}
+                {% endif %}
+                {% endfor %}
+                          
+                <!-- Calculate child count -->
+            
+                {% assign childArticleIds = "|" %}
+                {% for rel in allArticleCategories.results.entities %}
+                {% assign includeChildArticle = false %}
+                {% if rel.categoryid == child.categoryid %}
+                {% assign includeChildArticle = true %}
+                {% endif %}
+                {% for grandchild in allcategories.results.entities %}
+                {% if grandchild.parentcategoryid.id == child.categoryid %}
+                {% if rel.categoryid == grandchild.categoryid %}
+                {% assign includeChildArticle = true %}
+                {% endif %}
+                {% endif %}
+                {% endfor %}
+                {% if includeChildArticle %}
+                {% assign articleKey = "|" | append: rel.knowledgearticleid | append: "|" %}
+                {% unless childArticleIds contains articleKey %}
+                {% assign childArticleIds = childArticleIds | append: rel.knowledgearticleid | append: "|" %}
+                {% endunless %}
+                {% endif %}
+                {% endfor %}
+                <!-- {% assign childCount = childArticleIds | split:"|" | size %} -->
+                {% assign childCountString = childArticleIds | remove_first:"|" | remove_last:"|" %}
+                {% if childCountString == "" %}
+                {% assign childCount = 0 %}
+                {% else %}
+                {% assign childCount = childCountString | split:"|" | size %}
+                {% endif %}
+            
+                <!-- Decide visibility -->
+        
+                {% assign showChild = false %}
+                {% if childCount > 0 %}
+                {% assign showChild = true %}
+                {% endif %}
+            
+                {% if showChild %}
+                <div class="category-row">
+                  {% if childHasChildren %}
+                  <span class="expand-icon" onclick="toggleCategory('cat-{{ child.categoryid }}', this)">
+                    <i class="fa fa-chevron-right"></i>
+                  </span>
+                  {% else %}
+                  <span class="expand-placeholder"></span>
+                  {% endif %}
+                  <label class="filter-item">
+                    <input type="checkbox" class="cat-checkbox child-cat" data-id="{{ child.categoryid }}"
+                      data-parent="{{ parent.categoryid }}" data-title="{{ child.title | downcase }}"
+                      onchange="categoryChanged(this)" 
+                      {% if selectedCategories contains child.categoryid %} 
+                      checked 
+                      {% endif %}>
+                    <span>{{ child.title }}</span>
+                    <span class="category-count">
+                      {{ childCount }}
+                    </span>
+                  </label>
+                </div> <!-- Child Category Row -->
+
+                <!-- Grandchildren -->
+                
+                <div class="child-container" data-parent="{{ child.categoryid }}" id="cat-{{ child.categoryid }}">
+                  {% for grandchild in allcategories.results.entities %}
+                  {% if grandchild.parentcategoryid.id == child.categoryid %}
+                  {% fetchxml grandChildCount %}
+                  <fetch aggregate="true">
+                    <entity name="knowledgearticle">
+                      <attribute name="knowledgearticleid" alias="articlecount" aggregate="count" />
+                      <link-entity name="knowledgearticlescategories" from="knowledgearticleid" to="knowledgearticleid"
+                        intersect="true">
+                        <filter>
+                          <condition attribute="categoryid" operator="eq" value="{{ grandchild.categoryid }}" />
+                        </filter>
+                      </link-entity>
+                      <filter type="and">
+                        <condition attribute="statuscode" operator="eq" value="7" />
+                        <condition attribute="cat_ispublicfacing" operator="eq" value="1" />
+                        <condition attribute="cat_persona" operator="contain-values">
+                          <value>{{ personaValue }}</value>
+                        </condition>
+                      </filter>
+                    </entity>
+                  </fetch>
+                  {% endfetchxml %}
+                  {% assign grandChildCount = grandChildCount.results.entities[0].articlecount | default: 0 %}
+                  {% if grandChildCount > 0 %}
+                  <label class="filter-item child-item">
+                    <input type="checkbox" class="cat-checkbox grandchild-cat" data-id="{{ grandchild.categoryid }}"
+                      data-parent="{{ child.categoryid }}" data-title="{{ grandchild.title | downcase }}"
+                      onchange="categoryChanged(this)" 
+                      {% if selectedCategories contains grandchild.categoryid %} 
+                      checked 
+                      {% endif %}>
+                    <span>{{ grandchild.title }}</span>
+                    <span class="category-count">
+                      {{ grandChildCount }}
+                    </span>
+                  </label>
+                  {% endif %}
+                  {% endif %}
+                  {% endfor %}
+                </div> <!-- Grandchild-->
+                
+                {% endif %} <!-- showChild -->
+              </div> <!-- Child Category Node -->
+              {% endif %}
+              {% endfor %}
+            </div> <!-- Child -->
+            
+          </div> <!-- Parent Category Node -->
+          {% endif %} <!-- showParent -->
+
+        {% endif %}
+        {% endfor %}
+      
+      </div> <!-- Filter Section -->
+
+    <div class="mobile-filter-footer">
+    <button type="button"
+              class="mobile-clear-btn"
+              onclick="clearFilters()">
+          Clear All
+    </button>
+    <button type="button"
+              id="applyFiltersBtn"
+              class="mobile-apply-btn">
+          Apply
+    </button>
+    </div>
+
+    </div>
+
+    <div id="kbOverlay" class="kb-overlay"></div>
+
+    <script>
+
+  document.addEventListener("DOMContentLoaded", function () {
+    const mobileBtn = document.getElementById("mobileFilterBtn");
+    const sidebar = document.getElementById("filterSidebar");
+    const closeBtn = document.getElementById("closeFilterPanel");
+    const applyBtn = document.getElementById("applyFiltersBtn");
+    
+    const overlay = document.getElementById("kbOverlay");
+
+    function openSidebar() {
+      if (sidebar) sidebar.classList.add("mobile-open");
+      if (overlay) overlay.classList.add("active");
+      document.body.classList.add("no-scroll");
+    }
+
+    function closeSidebar() {
+      if (sidebar) sidebar.classList.remove("mobile-open");
+      if (overlay) overlay.classList.remove("active");
+      document.body.classList.remove("no-scroll");
+    }
+
+    if (mobileBtn) mobileBtn.addEventListener("click", openSidebar);
+    if (closeBtn) closeBtn.addEventListener("click", closeSidebar);
+    if (applyBtn) applyBtn.addEventListener("click", closeSidebar);
+    if (overlay) overlay.addEventListener("click", closeSidebar);
+  });
+
+</script>
+
+    <script>
+
+      function toggleCategory(id, element) {
+
+        const container = document.getElementById(id);
+        const icon = element.querySelector("i");
+
+        if (container.style.display === "block") {
+
+          container.style.display = "none";
+          icon.classList.remove("fa-chevron-down");
+          icon.classList.add("fa-chevron-right");
+
+        } else {
+
+          container.style.display = "block";
+          icon.classList.remove("fa-chevron-right");
+          icon.classList.add("fa-chevron-down");
+        }
+      }
+
+    </script>
+
+    <!-- Category Article Ends -->
+
+
+    <!-- Category Filter Logic -->
+    {% assign selectedCategories = request.params['categoryids'] | default:'' | split: ',' %}
+    {% assign pageSize = snippets['CAT Most Popular Articles Display Limit'] | default: 8 %}
+    <!-- {% assign currentPage = request.params['page'] | default: 1 %} -->
+     {% assign currentPage = request.params['page'] | default: 1 | plus: 0 %}
+
+<!-- {% fetchxml articles %}
+    <fetch distinct="true"
+      count="{{ pageSize }}"
+      page="{{ currentPage }}">
+      <entity name="knowledgearticle">
+        <attribute name="knowledgearticleid" />
+        <attribute name="articlepublicnumber" />
+        <attribute name="title" />
+        <attribute name="description" />
+        <attribute name="publishon" />
+        <attribute name="knowledgearticleviews" />
+        <order attribute="knowledgearticleviews" descending="true" />
+        <filter type="and">
+          <condition attribute="statuscode" operator="eq" value="7" />
+        </filter>
+
+        {% if selectedCategories.size > 0 and selectedCategories[0] != '' %}
+        <link-entity name="knowledgearticlescategories" from="knowledgearticleid" to="knowledgearticleid"
+          intersect="true">
+          <filter type="or">
+            {% for catId in selectedCategories %}
+            <condition attribute="categoryid" operator="eq" value="{{ catId }}" />
+            {% endfor %}
+          </filter>
+        </link-entity>
+        {% endif %}
+
+      </entity>
+    </fetch>
+    {% endfetchxml %} -->
+
+{% fetchxml articles %}
+<fetch distinct="true"
+       count="{{ pageSize }}"
+       page="{{ currentPage }}"
+      returntotalrecordcount="true">
+  <entity name="knowledgearticle">
+
+    <attribute name="knowledgearticleid" />
+    <attribute name="articlepublicnumber" />
+    <attribute name="title" />
+    <attribute name="description" />
+    <attribute name="content" />
+    <attribute name="publishon" />
+    <attribute name="knowledgearticleviews" />
+
+    <order attribute="knowledgearticleviews"
+           descending="true" />
+
+    <filter type="and">
+      <condition attribute="statuscode" operator="eq" value="7" />
+      <condition attribute="cat_ispublicfacing" operator="eq" value="1" />
+      <condition attribute="cat_persona" operator="contain-values">
+        <value>{{ personaValue }}</value>
+      </condition>
+    </filter>
+
+    {% if selectedCategories.size > 0 and selectedCategories[0] != '' %}
+    <link-entity name="knowledgearticlescategories"
+                 from="knowledgearticleid"
+                 to="knowledgearticleid"
+                 intersect="true">
+      <filter type="or">
+        {% for catId in selectedCategories %}
+        <condition attribute="categoryid"
+                   operator="eq"
+                   value="{{ catId }}" />
+        {% endfor %}
+      </filter>
+    </link-entity>
+    {% endif %}
+  </entity>
+</fetch>
+{% endfetchxml %} 
+<!-- Category Filter Logic Ends -->
+
+    {% fetchxml articleCount %}
+    <fetch aggregate="true">
+      <entity name="knowledgearticle">
+      <attribute name="knowledgearticleid"
+                    alias="totalarticles"
+                    aggregate="countcolumn"
+                    distinct="true" />
+      <filter type="and">
+     <condition attribute="cat_ispublicfacing"
+           operator="eq"
+           value="1" />
+
+      <condition attribute="cat_persona" operator="contain-values">
+          <value>{{ personaValue }}</value>
+      </condition>
+      </filter>
+        {% if selectedCategories.size > 0 and selectedCategories[0] != '' %}
+      <link-entity name="knowledgearticlescategories"
+                      from="knowledgearticleid"
+                      to="knowledgearticleid"
+                      intersect="true">
+      <filter type="or">
+            {% for catId in selectedCategories %}
+      <condition attribute="categoryid"
+                        operator="eq"
+                        value="{{ catId }}" />
+            {% endfor %}
+      </filter>
+      </link-entity>
+        {% endif %}
+      </entity>
+      </fetch>
+    {% endfetchxml %}
+
+    <!-- {% assign totalArticles = 0 %}
+    {% if articleCount.results.entities.size > 0 %}
+      {% assign totalArticles = articleCount.results.entities[0].totalarticles %}
+    {% endif %} 
+    
+    Changes Done here by AT
+    -->   
+
+    {% assign totalArticles = 0 %}
+
+    {% if articleCount.results.entities.size > 0 %}
+      {% assign totalArticlesRaw = articleCount.results.entities[0].totalarticles %}
+      {% if totalArticlesRaw %}
+        {% assign totalArticles = totalArticlesRaw | plus: 0 %}
+      {% endif %}
+    {% endif %}
+
+    {% assign totalArticlesNumber = totalArticles | plus: 0 %}
+    {% assign pageSizeNumber = 8 %}
+
+    {% assign totalPages = totalArticlesNumber | divided_by: pageSizeNumber %}
+    {% assign remainder = totalArticlesNumber | modulo: pageSizeNumber %}
+    {% if remainder > 0 %}
+      {% assign totalPages = totalPages | plus: 1 %}
+    {% endif %}
+    
+
+
+    <div class="kb-wrapper">
+      <h1 class="kb-main-title">Help Articles</h1>
+
+    <button id="mobileFilterBtn" class="mobile-filter-btn">
+      <i class="fa fa-filter"></i> Filter By
+    </button>
+
+      <h3 class="kb-sub-title">Most Popular Articles</h3>
+      <div id="articleGrid">
+      
+        <div class="kb-grid">
+
+          <!-- Limit is added to fetch top 8 -->
+          {% for article in articles.results.entities %}
+       
+
+          <div class="kb-card">
+            <!-- <a href="/Knowledge-Article-Details" class="kb-card-link"></a> -->
+
+            <a href="/Knowledge-Article-Details?articleId={{ article.knowledgearticleid }}" class="kb-card-link"></a>
+
+            <div class="kb-header">
+              <div class="kb-title">
+                <!-- <a href="/help-articles/article/?id={{ article.knowledgearticleid }}">
+                  {{ article.title }}
+                </a> -->
+                <a href="/Knowledge-Article-Details?articleId={{ article.knowledgearticleid }}"
+                  class="kb-title-preview-trigger">
+
+                  {{ article.title }}
+                </a>
+               
+                {% fetchxml newarticles %}
+                <fetch>
+                  <entity name="knowledgearticle">
+                    <attribute name="knowledgearticleid" />
+                    <filter type="and">
+                      <condition attribute="publishon" operator="last-x-days" value="14" />
+                    </filter>
+                  </entity>
+                </fetch>
+                {% endfetchxml %}
+                {% for newarticle in newarticles.results.entities %}
+                {% if article.knowledgearticleid == newarticle.knowledgearticleid %}
+                <span class="kb-badge-new">New</span>
+                {% endif %}
+                {% endfor %}
+              </div>
+
+          
+
+              <div class="kb-views">
+                <!-- <i class="fa fa-eye"></i> -->
+                 <img src="/ViewIcon" alt="view"/>
+                {{article.knowledgearticleviews}}
+              </div>
+            </div>
+
+            <!-- Tag Logic Starts -->
+            <div class="kb-tag">
+              {% fetchxml articleCategories %}
+              <fetch top="1">
+                <entity name="category">
+                  <attribute name="title" />
+                  <attribute name="categoryid" />
+                  <attribute name="parentcategoryid" />
+                  <link-entity name="knowledgearticlescategories" intersect="true" from="categoryid" to="categoryid">
+                    <filter>
+                      <condition attribute="knowledgearticleid" operator="eq"
+                        value="{{ article.knowledgearticleid }}" />
+                    </filter>
+                  </link-entity>
+                </entity>
+              </fetch>
+              {% endfetchxml %}
+              {% assign printedTags = "|" %}
+              {% for cat in articleCategories.results.entities %}
+              {% if cat.parentcategoryid == nil %}
+              {% assign tagName = cat.title %}
+              {% unless printedTags contains tagName %}
+              <span class="kb-category-badge">
+                {{ tagName }}
+              </span>
+              {% assign printedTags = printedTags | append: tagName | append: "|" %}
+              {% endunless %}
+              {% else %}
+              {% fetchxml parentCategory %}
+              <fetch top="1">
+                <entity name="category">
+                  <attribute name="title" />
+                  <attribute name="parentcategoryid" />
+                  <filter>
+                    <condition attribute="categoryid" operator="eq" value="{{ cat.parentcategoryid.id }}" />
+                  </filter>
+                </entity>
+              </fetch>
+              {% endfetchxml %}
+              {% assign parent = parentCategory.results.entities[0] %}
+              {% if parent.parentcategoryid == nil %}
+              {% assign tagName = parent.title %}
+              {% unless printedTags contains tagName %}
+              <span class="kb-category-badge">
+                {{ tagName }}
+              </span>
+              {% assign printedTags = printedTags | append: tagName | append: "|" %}
+              {% endunless %}
+              {% else %}
+              {% fetchxml grandParentCategory %}
+              <fetch top="1">
+                <entity name="category">
+                  <attribute name="title" />
+                  <filter>
+                    <condition attribute="categoryid" operator="eq" value="{{ parent.parentcategoryid.id }}" />
+                  </filter>
+                </entity>
+              </fetch>
+              {% endfetchxml %}
+              {% assign tagName = grandParentCategory.results.entities[0].title %}
+              {% unless printedTags contains tagName %}
+              <span class="kb-category-badge">
+                {{ tagName }}
+              </span>
+              {% assign printedTags = printedTags | append: tagName | append: "|" %}
+              {% endunless %}
+              {% endif %}
+              {% endif %}
+              {% endfor %}
+            </div>
+            <!-- Tag Logic Ends -->
+
+            <div class="kb-desc">
+              <a href="/Knowledge-Article-Details/article/?id={{ article.knowledgearticleid }}">
+                {{ article.description | truncate: 140 }}
+              </a>
+            </div>
+            <div class="kb-footer">
+              <a href="/Knowledge-Article-Details/article/?id={{ article.knowledgearticleid }}" target="_blank"
+                class="read-more-link">
+                Read more
+                <span class="external-icon">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                    <path d="M14 3H21V10" stroke="currentColor" stroke-width="2" />
+                    <path d="M21 3L10 14" stroke="currentColor" stroke-width="2" />
+                    <path d="M21 14V21H3V3H10" stroke="currentColor" stroke-width="2" />
+                  </svg>
+                </span>
+              </a>
+            </div>
+
+            <!-- Hover Functionality -->
+            <div class="kb-preview-source" style="display:none;">
+              <div class="kb-preview-source-title">
+                {{ article.title | escape }}
+              </div>
+
+              <div class="kb-preview-source-content">
+                {{ article.content | default: article.description }}
+              </div>
+            </div>
+
+          </div>
+
+          {% endfor %}
+          <!-- <p>Current CategoryIds = {{ request.params.categoryids }}</p> -->
+        
+<!-- Total Records: {{ articles.results.total_record_count }} -->
+<!-- {% if articles.results.total_record_count > 8 %}
+          <div class="kb-pagination">
+            {% for i in (1..totalPages) %}
+                {% if i == currentPage %}
+                  <span class="page-number active">
+                    {{ i }}
+                  </span>
+                {% else %}
+                  {% if request.params.categoryids %}
+                    <a class="page-number"
+                      href="?categoryids={{ request.params.categoryids | url_encode }}&page={{ i }}">
+                      {{ i }}
+                    </a>
+                  {% else %}
+                    <a class="page-number"
+                      href="?page={{ i }}">
+                      {{ i }}
+                    </a>
+                  {% endif %}
+                {% endif %}
+            {% endfor %}
+          </div>
+          {% endif %} -->
+          {% if totalPages > 1 %}
+
+{% assign startRecord = currentPage | minus: 1 | times: pageSizeNumber | plus: 1 %}
+{% assign endRecord = currentPage | times: pageSizeNumber %}
+
+{% if endRecord > totalArticlesNumber %}
+  {% assign endRecord = totalArticlesNumber %}
+{% endif %}
+
+<div class="kb-pagination-wrapper">
+
+    <div class="record-info">
+        Viewing {{ startRecord }}-{{ endRecord }} of {{ totalArticlesNumber }}
+    </div>
+
+   <div class="pagination-buttons">
+
+
+
+</div>
+</div>
+
+{% endif %}
+
+        </div>
+      </div>
+
+      <!-- Hover -->
+      <div id="kbArticlePreviewPopup" class="kb-article-preview-popup" aria-hidden="true">
+        <div class="kb-preview-popup-title"></div>
+        <div class="kb-preview-popup-content"></div>
+      </div>
+
+
+      <div class="col-lg-12 columnBlockLayout" style="padding:16px; margin: 60px 0px; min-height: 0;"></div>
+    </div>
+   
+`
+
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600;700&family=Roboto+Condensed:wght@400;700&display=swap');
+
+      body,
+      * {
+        font-family: "NotoSans", sans-serif !important;
+
+      }
+      
+     .kb-pagination-wrapper {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 24px;
+    width: 100%;
+}
+
+.record-info {
+    color: #555;
+    font-size: 14px;
+}
+
+.pagination-buttons {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.page-btn {
+    min-width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none !important;
+    background: transparent;
+    color: #0067B8;
+    font-weight: 600;
+}
+
+.page-btn:hover {
+    background: #f3f2f1;
+}
+
+.page-btn.active {
+    background: #FFC72C;
+    color: #000;
+}
+
+.page-ellipsis {
+    cursor: default;
+}
+@media (max-width:768px){
+
+    .kb-pagination-wrapper{
+        flex-direction:column;
+        gap:12px;
+    }
+
+    .record-info{
+        order:2;
+    }
+
+    .pagination-buttons{
+        order:1;
+        flex-wrap:wrap;
+        justify-content:center;
+    }
+}
+
+      /* WRAPPER */
+      .kb-wrapper {
+        flex: 1 1 auto;
+        min-width: 0;
+        margin: 0px 0 0 0px;
+        padding: 20px;
+      }
+
+      .kb-card-link {
+        position: absolute;
+        inset: 0;
+        z-index: 5;
+        display: block;
+        text-decoration: none !important;
+        color: inherit !important;
+      }
+
+      kb-card>*:not(.kb-card-link) {
+        position: relative;
+        z-index: 10;
+      }
+
+      .kb-card:hover {
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      }
+      /* Title should be above the full-card overlay */
+      .kb-title,
+      .kb-title a,
+      .kb-title-preview-trigger {
+        position: relative;
+        z-index: 20;
+        pointer-events: auto;
+      }
+
+      .kb-title a:not(.btn):hover {
+        text-decoration: none !important;
+      }
+
+      .kb-desc a:not(.btn):hover {
+        text-decoration: none !important;
+      }
+
+      /* Static popup near tile */
+      .kb-article-preview-popup {
+        position: fixed;
+        width: auto;
+        max-width: 620px;
+        max-height: 420px;
+        padding: 18px;
+        background: #ffffff;
+        border: 1px solid #cccccc;
+        border-radius: 8px;
+        box-shadow: 0 10px 32px rgba(0, 0, 0, 0.18);
+        z-index: 99999;
+
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.15s ease, visibility 0.15s ease;
+
+        pointer-events: auto;
+      }
+
+      .kb-article-preview-popup.active {
+        opacity: 1;
+        visibility: visible;
+      }
+
+      .kb-preview-popup-title {
+        color: #1f1f1f;
+        font-family: "NotoSans", sans-serif !important;
+        font-size: 16px;
+        font-weight: 700;
+        line-height: 22px;
+        margin-bottom: 10px;
+      }
+
+      .kb-preview-popup-content {
+        color: #3f3f3f;
+        font-family: "NotoSans", sans-serif !important;
+        font-size: 14px;
+        font-weight: 400;
+        line-height: 21px;
+        overflow-y: auto;
+        max-height: 340px;
+      }
+
+
+      /* GRID */
+      .kb-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 2fr);
+        gap: 8px;
+
+      }
+
+      /* CARD */
+      .kb-card {
+        position: relative;
+        display: flex !important;
+        padding: 24px 16px !important;
+        flex-direction: column !important;
+        gap: 16px !important;
+        flex: 1 0 0 !important;
+        border-radius: 6px !important;
+        border: 1px solid var(--border-default, #CCC) !important;
+        background: #FFF !important;
+
+
+      }
+
+      /* HEADER */
+      .kb-header {
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: flex-start !important;
+        margin-top: 0px !important;
+      }
+
+      /* TITLE */
+      .kb-title a {
+        font-size: 16px !important;
+        font-weight: 600 !important;
+
+        text-decoration: none !important;
+        color: var(--content-default, #3F3F3F) !important;
+
+        /* label / large */
+        font-family: "NotoSans" !important;
+
+        font-style: normal !important;
+        /* 150% */
+      }
+
+      /* VIEWS */
+      .kb-views {
+        font-size: 14px;
+        color: #3f3f3f;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+
+      /* TAG */
+      /*.kb-tag {
+
+        width: fit-content;
+        display: flex;
+        padding: 5.5px 8.5px !important;
+        font-size: 14px !important;
+        justify-content: center;
+        align-items: center;
+        gap: 4px;
+        border-radius: 16px;
+        background: var(--component-badge-grey, #E1E1E1);
+
+      }*/
+
+      /* DESCRIPTION */
+      .kb-desc {
+
+        overflow: hidden;
+        color: var(--content-default, #3F3F3F);
+        text-overflow: ellipsis;
+        white-space: normal;
+
+        /* body/small */
+        font-family: "NotoSans" !important;
+        font-size: 14px;
+        font-style: normal;
+        font-weight: 400;
+        line-height: 20px;
+        /* 142.857% */
+        height: 40px;
+        align-self: stretch;
+
+      }
+
+
+      .kb-desc a {
+        text-decoration: none !important;
+        /* body/small */
+        font-family: "NotoSans" !important;
+        font-size: 14px;
+        font-style: normal;
+        font-weight: 400;
+        line-height: 20px;
+        /* 142.857% */
+        height: 86px;
+        align-self: stretch;
+      }
+
+      /* FOOTER */
+      .kb-footer {
+        margin-top: auto;
+      }
+
+      .fa,
+      .fa * {
+        font-family: "FontAwesome" !important;
+      }
+      .fa-eye {
+      width: 21.79px;
+      height: 15.574px;
+      color: #1F1F1F;
+      margin: 0 !important;
+      padding:0 !important;
+      }
+      .kb-footer a {
+
+        color: var(--content-link-default, #0067B8);
+
+        /* label/default */
+        font-family: "NotoSans" !important;
+        font-size: 14px;
+        font-style: normal;
+        font-weight: 600;
+        line-height: 20px;
+        /* 142.857% */
+      }
+
+      /* MAIN TITLE */
+      .kb-main-title {
+        position: relative;
+        margin-bottom: 30px;
+        margin-top: 0px !important;
+        color: #000;
+        font-feature-settings: 'liga' off, 'clig' off;
+        font-family: "RobotoCondensed", sans-serif !important;
+        font-size: 50px;
+        font-style: normal;
+        font-weight: 700;
+        line-height: normal;
+        width: 656px;
+      }
+
+      .kb-main-title::after {
+        content: "";
+        position: absolute;
+        left: 0;
+        bottom: -10px;
+        width: 60px;
+        /* length of yellow line */
+        height: 4px;
+        background-color: #f2c300;
+        /* CAT yellow */
+        border-radius: 2px;
+      }
+
+      /* SUB TITLE */
+      .kb-sub-title {
+font-family: "NotoSans" !important;
+    font-size: 1rem !important;
+    font-weight: 600 !important;
+    line-height: 1.5rem !important;
+    padding: 1rem 0;
+      }
+
+      .kb-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .kb-badge-new {
+        background-color: #f2c300;
+        /* CAT yellow */
+        color: #000;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 3px 8px;
+        border-radius: 12px;
+      }
+
+      .read-more-link {
+
+        color: var(--content-link-default, #0067B8);
+
+        /* label/default */
+        font-family: "NotoSans";
+        font-size: 14px;
+        font-style: normal;
+        font-weight: 600;
+        line-height: 20px;
+        /* 142.857% */
+      }
+
+      .external-icon svg {
+        width: 14px;
+        height: 14px;
+      }
+
+      .mobile-filter-btn{
+        display:none;
+      }
+      .mobile-close{
+        display:none;
+      }
+      .mobile-filter-footer{
+        display:none;
+      }
+
+  /* =========================================
+     MOBILE ONLY
+     ========================================= */
+  @media (max-width: 768px) {
+
+    html,
+    body {
+      overflow-x: hidden !important;
+    }
+
+    body.no-scroll {
+      overflow: hidden !important;
+    }
+
+    .row.sectionBlockLayout {
+      padding: 0 !important;
+    }
+
+    .container {
+      width: 100% !important;
+      max-width: 100% !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      overflow-x: hidden !important;
+    }
+
+    /* ---------- FILTER SIDEBAR ---------- */
+    .kb-sidebar {
+      position: fixed;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      /*max-width: 360px;*/
+      height: 103dvh;
+      background: #fff;
+      z-index: 10000;
+      overflow-y: auto;
+      transition: left 0.28s ease;
+      padding: 16px 16px 0 16px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 3px 0 12px rgba(0, 0, 0, 0.14);
+    }
+
+    .kb-sidebar.mobile-open {
+      left: 0;
+    }
+
+    .kb-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.35);
+      z-index: 9999;
+      display: none;
+    }
+
+    .kb-overlay.active {
+      display: block;
+    }
+
+    .filter-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #e5e5e5;
+      margin-bottom: 8px;
+      position: sticky;
+      /*top: 0;*/
+      background: #fff;
+      z-index: 2;
+    }
+
+    .filter-header h3 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .filter-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .top-clear-link {
+      display: none;
+    }
+
+    .mobile-close {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      font-size: 24px;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    .filter-section {
+      padding-bottom: 88px;
+    }
+
+    .filter-section h4 {
+      margin: 8px 0 12px;
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .category-row {
+      display: flex;
+      align-items: flex-start;
+      /*gap: 8px;*/
+      width: 100%;
+    }
+
+    .filter-item {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      width: 100%;
+      gap: 10px;
+      padding: 2px 0;
+      margin: 0;
+    }
+
+    .filter-item input[type="checkbox"] {
+      margin-top: 2px;
+      flex-shrink: 0;
+    }
+
+    .category-text {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+    }
+
+    .expand-icon,
+    .expand-placeholder {
+      width: 24px;
+      min-width: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 3px;
+    }
+
+    .child-container {
+      padding-left: 14px;
+
+    }
+
+    .mobile-filter-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      position: sticky;
+      bottom: 0;
+      background: #fff;
+      border-top: 1px solid #ddd;
+      padding: 12px 0 calc(12px + env(safe-area-inset-bottom));
+      margin-top: auto;
+    }
+
+    .mobile-clear-btn {
+      flex: 1;
+      height: 44px;
+      border: 1px solid #b5b5b5;
+      background: #fff;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+
+    .mobile-apply-btn {
+      flex: 1;
+      height: 44px;
+      border: none;
+      background: #f2c300;
+      border-radius: 4px;
+      font-weight: 700;
+      color: #000;
+    }
+
+    /* ---------- CONTENT WRAPPER ---------- */
+    .kb-wrapper {
+      width: 100% !important;
+      max-width: 100% !important;
+      padding: 16px 16px 24px !important;
+      margin: 0 !important;
+      box-sizing: border-box;
+      overflow-x: hidden !important;
+    }
+
+    .kb-main-title {
+      width: 100% !important;
+      font-size: 28px !important;
+      line-height: 34px !important;
+      margin: 0 0 26px 0 !important;
+    }
+
+    .kb-main-title::after {
+      bottom: -12px;
+      width: 48px;
+      height: 4px;
+    }
+
+    .mobile-filter-btn {
+           display:flex;
+            align-items:center;
+            gap:8px;
+            width:120px;
+            margin:16px;
+            padding:12px 18px;
+            border:1px solid #333;
+            background:#fff;
+            border-radius:4px;
+    }
+
+    .mobile-filter-btn i {
+      font-size: 14px;
+    }
+
+   
+    /* ---------- GRID / CARDS ---------- */
+    .kb-grid {
+      display: grid !important;
+      grid-template-columns: 1fr !important;
+      overflow-y: hidden;
+      gap: 16px !important;
+      width: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+
+    .kb-card {
+      width: 100% !important;
+      max-width: 100% !important;
+      margin: 0 !important;
+      padding: 18px 16px !important;
+      box-sizing: border-box !important;
+      border-radius: 6px !important;
+      gap: 14px !important;
+    }
+
+    .kb-header {
+      display: grid !important;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: start !important;
+      gap: 12px !important;
+    }
+
+    .kb-title {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      flex-wrap: wrap;
+      min-width: 0;
+    }
+
+    .kb-title a {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      font-size: 16px !important;
+      line-height: 1.45 !important;
+      word-break: break-word;
+      max-width: 100%;
+    }
+
+    .kb-views {
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: flex-end;
+      font-size: 14px !important;
+      white-space: nowrap;
+      line-height: 1;
+      margin-top: 2px;
+      gap: 0 !important;
+    }
+
+    .kb-tag {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .kb-category-badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: #e1e1e1;
+      font-size: 13px;
+      font-weight: 600;
+      color: #3f3f3f;
+    }
+
+    .kb-desc {
+      height: auto !important;
+      min-height: 48px;
+      font-size: 14px !important;
+      line-height: 1.6 !important;
+      color: #3f3f3f;
+    }
+
+    .kb-desc a {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      height: auto !important;
+      line-height: 1.6 !important;
+      color: #3f3f3f;
+    }
+
+    .kb-footer {
+      margin-top: auto !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: flex-start;
+      min-height: 24px;
+    }
+
+    .read-more-link {
+      display: inline-flex !important;
+      align-items: center !important;
+      gap: 4px;
+      font-size: 14px !important;
+      font-weight: 700 !important;
+      line-height: 20px !important;
+    }
+
+    .external-icon {
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .kb-pagination {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .page-number {
+      min-width: 32px;
+      height: 32px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    } 
+  }
+.filter-header h3 {
+    font-family: "RobotoCondensed";
+    font-size: 18px !important;
+    font-weight: 700 !important;
+    color: #3F3F3F !important;
+}
+
+.filter-section h4 {
+    font-family: "NotoSans", sans-serif !important;
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    color: #4A4A4A !important;
+}
+
+.filter-item,
+.filter-item span {
+    font-family: "NotoSans", sans-serif !important;
+    font-size: 14px !important;
+    font-weight: 400 !important;
+    color: #4A4A4A !important;
+    line-height: 20px !important;
+}
+
+.category-count {
+    font-family: "NotoSans", sans-serif !important;
+    font-size: 14px !important;
+    font-weight: 400 !important;
+    color: #4A4A4A !important;
+}
+#clearAllLink{
+    color:#0067B8 !important;
+    font-size:14px !important;
+    font-weight:400 !important;
+    font-family:"NotoSans",sans-serif !important;
+}
+/* Filter category text */
+#filterSidebar .filter-item,
+#filterSidebar .filter-item span,
+#filterSidebar .category-title,
+#filterSidebar label,
+#filterSidebar .category-text {
+    color: #3F3F3F !important;
+    font-family: "NotoSans", sans-serif !important;
+    font-size: 14px !important;
+    font-weight: 400 !important;
+    line-height: 20px !important;
+}
+    </style>
+
+<!-- <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        const popup = document.getElementById("kbArticlePreviewPopup");
+
+        if (!popup) return;
+
+        const popupTitle = popup.querySelector(".kb-preview-popup-title");
+        const popupContent = popup.querySelector(".kb-preview-popup-content");
+
+        // Hover only on article title
+        const titleLinks = document.querySelectorAll(".kb-title-preview-trigger");
+
+        function placePopupNearTile(titleLink) {
+          const card = titleLink.closest(".kb-card");
+          if (!card) return;
+
+          const cardRect = card.getBoundingClientRect();
+
+          const popupWidth = popup.offsetWidth || 420;
+          const popupHeight = popup.offsetHeight || 300;
+          const gap = 14;
+
+          let left = cardRect.right + gap;
+          let top = cardRect.top;
+
+          // If there is no space on right, show on left side of tile
+          if (left + popupWidth > window.innerWidth - 16) {
+            left = cardRect.left - popupWidth - gap;
+          }
+
+          // If left side also has no space, keep inside viewport
+          if (left < 16) {
+            left = 16;
+          }
+
+          // Keep popup inside bottom viewport
+          if (top + popupHeight > window.innerHeight - 16) {
+            top = window.innerHeight - popupHeight - 16;
+          }
+
+          if (top < 16) {
+            top = 16;
+          }
+
+          popup.style.left = left + "px";
+          popup.style.top = top + "px";
+        }
+
+        titleLinks.forEach(function (titleLink) {
+          titleLink.addEventListener("mouseenter", function () {
+            const card = titleLink.closest(".kb-card");
+            if (!card) return;
+
+            const source = card.querySelector(".kb-preview-source");
+            if (!source) return;
+
+            const titleElement = source.querySelector(".kb-preview-source-title");
+            const contentElement = source.querySelector(".kb-preview-source-content");
+
+            const title = titleElement ? titleElement.textContent.trim() : "";
+            // const content = contentElement ? contentElement.textContent.trim() : "";
+            
+const content = contentElement
+  ? contentElement.innerHTML
+  : "";
+popupContent.innerHTML = content;
+
+            popupTitle.textContent = title;
+            // popupContent.textContent = content;
+
+
+            
+
+            popup.classList.add("active");
+            popup.setAttribute("aria-hidden", "false");
+
+            // Static placement near the tile - calculated only once on hover
+            placePopupNearTile(titleLink);
+          });
+
+          // titleLink.addEventListener("mouseleave", function () {
+          //   popup.classList.remove("active");
+          //   popup.setAttribute("aria-hidden", "true");
+          // });
+          let hideTimeout;
+
+function showPopup() {
+  clearTimeout(hideTimeout);
+  popup.classList.add("active");
+  popup.setAttribute("aria-hidden", "false");
+}
+
+function hidePopup() {
+  hideTimeout = setTimeout(() => {
+    popup.classList.remove("active");
+    popup.setAttribute("aria-hidden", "true");
+  }, 200);
+}
+  popup.addEventListener("mouseenter", function () {
+  clearTimeout(hideTimeout);
+});
+
+popup.addEventListener("mouseleave", hidePopup);   
+});
+
+        window.addEventListener("scroll", function () {
+          popup.classList.remove("active");
+          popup.setAttribute("aria-hidden", "true");
+        });
+
+        window.addEventListener("resize", function () {
+          popup.classList.remove("active");
+          popup.setAttribute("aria-hidden", "true");
+        });
+      });
+    </script> -->
+
+ <script>
+document.addEventListener("DOMContentLoaded", function () {
+    const popup = document.getElementById("kbArticlePreviewPopup");
+
+    if (!popup) return;
+
+    const popupTitle = popup.querySelector(".kb-preview-popup-title");
+    const popupContent = popup.querySelector(".kb-preview-popup-content");
+
+    const titleLinks = document.querySelectorAll(".kb-title-preview-trigger");
+
+    let hideTimeout;
+
+    function placePopupNearTile(titleLink) {
+        const card = titleLink.closest(".kb-card");
+        if (!card) return;
+
+        const cardRect = card.getBoundingClientRect();
+
+        const popupWidth = popup.offsetWidth || 420;
+        const popupHeight = popup.offsetHeight || 300;
+        const gap = 14;
+
+        let left = cardRect.right + gap;
+        let top = cardRect.top;
+
+        // If there is no space on right, show on left side
+        if (left + popupWidth > window.innerWidth - 16) {
+            left = cardRect.left - popupWidth - gap;
+        }
+
+        // Keep inside viewport
+        if (left < 16) {
+            left = 16;
+        }
+
+        if (top + popupHeight > window.innerHeight - 16) {
+            top = window.innerHeight - popupHeight - 16;
+        }
+
+        if (top < 16) {
+            top = 16;
+        }
+
+        popup.style.left = left + "px";
+        popup.style.top = top + "px";
+    }
+
+    function showPopup() {
+        clearTimeout(hideTimeout);
+        popup.classList.add("active");
+        popup.setAttribute("aria-hidden", "false");
+    }
+
+    function hidePopup() {
+        hideTimeout = setTimeout(() => {
+            popup.classList.remove("active");
+            popup.setAttribute("aria-hidden", "true");
+        }, 200);
+    }
+
+    titleLinks.forEach(function (titleLink) {
+
+        titleLink.addEventListener("mouseenter", function () {
+            clearTimeout(hideTimeout);
+
+            const card = titleLink.closest(".kb-card");
+            if (!card) return;
+
+            const source = card.querySelector(".kb-preview-source");
+            if (!source) return;
+
+            const titleElement = source.querySelector(".kb-preview-source-title");
+            const contentElement = source.querySelector(".kb-preview-source-content");
+
+            const title = titleElement
+                ? titleElement.textContent.trim()
+                : "";
+
+            const content = contentElement
+                ? contentElement.innerHTML
+                : "";
+
+            popupTitle.textContent = title;
+            popupContent.innerHTML = content;
+
+            showPopup();
+            placePopupNearTile(titleLink);
+        });
+
+        // FIX: Hide when leaving title
+        titleLink.addEventListener("mouseleave", hidePopup);
+    });
+
+    // Keep popup open when cursor moves into it
+    popup.addEventListener("mouseenter", function () {
+        clearTimeout(hideTimeout);
+    });
+
+    // Hide when cursor leaves popup
+    popup.addEventListener("mouseleave", hidePopup);
+
+    window.addEventListener("scroll", function () {
+        popup.classList.remove("active");
+        popup.setAttribute("aria-hidden", "true");
+    });
+
+    window.addEventListener("resize", function () {
+        popup.classList.remove("active");
+        popup.setAttribute("aria-hidden", "true");
+    });
+});
+</script>
+ 
+  </div>
+</div>
+</div>

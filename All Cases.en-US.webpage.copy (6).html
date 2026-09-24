@@ -1,0 +1,5484 @@
+<div id="i2i126" class="row sectionBlockLayout text-start" style="display: flex; flex-wrap: wrap; margin: 0px; min-height: auto; padding: 8px;">
+  <div id="ijzr2g" class="container" style="padding: 0px; display: flex; flex-wrap: wrap; max-width: 100%"><div class="col-lg-12 columnBlockLayout" style="flex-grow: 1; display: flex; flex-direction: column; min-width: 250px;margin-top: 0;"><div class="cases-heading"> <h1 class="cases-title">All Cases</h1>  </div>
+
+{% fetchxml allStatusOptions %}
+<fetch version="1.0" mapping="logical" distinct="true">
+  <entity name="incident">
+    <attribute name="cat_helpcenterstatus"></attribute>
+
+    <filter type="and">
+      <condition attribute="cat_helpcenterstatus" operator="not-null"></condition>
+    </filter>
+
+    <order attribute="cat_helpcenterstatus" descending="false"></order>
+  </entity>
+</fetch>
+{% endfetchxml %}
+
+{% fetchxml allDealerCodeOptions %}
+<fetch version="1.0" mapping="logical" distinct="true">
+  <entity name="incident">
+    <attribute name="cat_dealercode"></attribute>
+
+    <filter type="and">
+      <condition attribute="cat_dealercode" operator="not-null"></condition>
+    </filter>
+
+    <order attribute="cat_dealercode" descending="false"></order>
+  </entity>
+</fetch>
+{% endfetchxml %}
+
+{% assign productPersonaValue = "" %}
+
+{% if user.roles contains "Cat_Dealer Persona Role" %}
+  {% assign productPersonaValue = "100000001" %}
+{% elsif user.roles contains "Cat_Internal Customer Persona Role" %}
+  {% assign productPersonaValue = "100000003" %}
+{% elsif user.roles contains "Cat_Customer Persona Role" %}
+  {% assign productPersonaValue = "100000000" %}
+{% endif %}
+
+{% fetchxml allProductOptions %}
+<fetch version="1.0" mapping="logical" distinct="true">
+  <entity name="product">
+    <attribute name="productid"></attribute>
+    <attribute name="name"></attribute>
+    <filter type="and">
+        <condition attribute="producttypecode" operator="eq" value="1"/>
+        <condition attribute="statecode" operator="eq" value="0"/>
+        <condition attribute="cat_helpcenterstatus" operator="ne" value="100000006"/>
+        <condition attribute="cat_persona" operator="contain-values">
+  <value>{{ productPersonaValue }}</value>
+</condition>
+    </filter>
+    <order attribute="name" descending="false"></order>
+  </entity>
+</fetch>
+{% endfetchxml %}
+
+<div id="dealerCasesContainer">
+
+{% if user.roles contains "Cat_Dealer Persona Role" or user.roles contains "Cat_Internal Customer Persona Role"%}
+
+{% fetchxml pinnedCases %}
+<fetch version="1.0" mapping="logical" distinc="true">
+  <entity name="incident">
+
+    <!-- 1. Contact Name -->
+    <attribute name="cat_contactname"/>
+
+    <!-- 2. Handup (Elevation) Name / Elevation ID -->
+    <attribute name="ticketnumber" />
+
+    <!--3 Elevation Status-->
+<attribute name ="cat_elevationstatus"/>
+
+    <!-- 4. Dealer Code -->
+    <attribute name="cat_dealercode" />
+
+    <!--5 Assignee Name-->
+    <attributr name="cat_assigneename"/>
+
+    <!--6 Assignee Email-->
+    <attribute name="cat_assigneeemail"/>
+    <attribute name="cat_helpcenterstatus"/>
+    <!-- 7. Date Opened -->
+    <attribute name="createdon" />
+
+    <!-- 8. Handup Age -->
+    <attribute name="caseage" />
+
+    <!-- 9. Language -->
+    <attribute name="cat_language" />
+    
+       <!-- 11. Subject -->
+    <attribute name="title" />
+    
+    <!-- 12.Description -->
+    <attribute name="description"/>
+
+    <!-- 13. Case Origin-->
+    <attribute name="caseorigincode"/>
+
+    <!-- New All Cases filter fields -->
+     <attribute name="cat_supporttype_id" />
+     <attribute name="cat_secondarysupporttype_id" />
+
+    <attribute name="productid" /> 
+    <attribute name="cat_requestedfrom" /> 
+    <attribute name="msdyn_casesurveyinviteurl" />
+
+    <!-- NEW: Customer Voice Survey Response -->
+    <link-entity name="msfp_surveyresponse"
+        from="regardingobjectid"
+        to="incidentid"
+        link-type="outer"
+        alias="surveyresponse">
+    <attribute name="activityid" />
+    <attribute name="msfp_submitdate" />
+    </link-entity>
+
+    <link-entity name="product"
+        from="productid"
+        to="productid"
+        alias="product"
+        link-type="outer">
+        <attribute name="name"
+        alias="producttechnology"/>
+    </link-entity>
+
+    <!-- Requested From Contact Persona for All Cases filter -->
+<link-entity
+    name="contact"
+    from="contactid"
+    to="cat_requestedfrom"
+    alias="allcasespersonacontact"
+    link-type="outer">
+    <attribute
+        name="cat_persona"
+        alias="allcasespersona" />
+</link-entity>
+
+        <!-- 14. Contact Phone -->
+            <filter type="and">
+                  <condition attribute="cat_helpcenterstatus" operator="ne" value="100000006"/>
+                  <condition attribute="parentcaseid" operator="null"/>
+                <condition attribute="cat_elevationtype" operator="null"/>
+                  <condition attribute="createdon" operator="last-x-years" value="1" />
+            </filter>
+  </entity> 
+</fetch>
+    {% endfetchxml %}
+
+
+<!--testcases={{ testcases.results.entities.size }}<br>
+requestedForAccount={{ requestedForAccount.results.entities.size}}<br>
+requestedForContact={{ requestedForContact.results.entities.size}}<br>
+requestedBy={{ requestedBy.results.entities.size}}<br>
+dealerLookup={{ dealerLookup.results.entities.size}}<br>
+requestedByHierarchy={{ requestedByHierarchy.results.entities.size}}<br>-->
+
+
+<!-- Export to excel custom button -->
+
+<div class="cases-actions">
+    <div class="dealer-list-toolbar">
+        <button type="button" id="openCaseFilter" class="filter-icon-btn" title="Filter">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" style="margin-bottom: 14px;">  
+            <path d="M3 5H21L14 13V20L10 22V13L3 5Z"
+                    stroke="#1A1A1A"
+                    stroke-width="1.5"
+                    stroke-linejoin="round"/>
+            </svg>
+        </button>
+    </div>
+    <div class="view-toggle-container">
+        <button id="viewToggleBtn" class="custom-grid-icon">
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+        </button>   
+    </div>
+    
+
+<div class="case-global-search">
+    <span class="case-global-search-icon" aria-hidden="true">
+        <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+        >
+            <circle
+                cx="11"
+                cy="11"
+                r="7"
+                stroke="currentColor"
+                stroke-width="1.8"
+            ></circle>
+            <path
+                d="M16 16L21 21"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+            ></path>
+        </svg>
+    </span>
+
+    <input
+        type="text"
+        id="dealerCaseSearch"
+        class="case-global-search-input"
+        placeholder="Search cases"
+        aria-label="Search cases by any column value"
+        autocomplete="off"
+    >
+
+    <button
+        type="button"
+        id="clearDealerCaseSearch"
+        class="case-global-search-clear"
+        title="Clear search"
+        aria-label="Clear search"
+    >
+        &times;
+    </button>
+</div>
+
+<div
+    id="dealerCaseSearchResult"
+    class="case-global-search-result"
+    aria-live="polite"
+></div>
+
+ <button type="button" id="exportDealerCases" class="export-excel-btn" disabled>
+<img src="/upload.png" alt="Export" style="width:16px;height:16px;margin-right:6px;vertical-align:middle;">Export</button>
+
+</div>
+
+
+
+<script src="/xlsx.full.min.js"></script>
+
+<script>
+function updateExportButtonState() {
+
+    var exportButton =
+        $("#exportDealerCases");
+
+    if (exportButton.length === 0) {
+        return;
+    }
+
+    var filteredRows;
+
+    if (typeof getFilteredCaseRows === "function") {
+        filteredRows =
+            getFilteredCaseRows();
+    } else {
+        filteredRows =
+            $("#dealerCasesTable tbody tr[data-id]");
+    }
+
+    var shouldDisable =
+        filteredRows.length === 0;
+
+    exportButton
+        .prop("disabled", shouldDisable)
+        .toggleClass("disabled", shouldDisable)
+        .attr(
+            "aria-disabled",
+            shouldDisable ? "true" : "false"
+        )
+        .attr(
+            "title",
+            shouldDisable
+                ? "No cases available to export"
+                : "Export cases to Excel"
+        );
+}
+
+
+$(document).on(
+    "click",
+    "#exportDealerCases",
+    function (e) {
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        if ($(this).prop("disabled")) {
+            return;
+        }
+
+        exportDealerCasesToXlsx();
+    }
+);
+
+
+function exportDealerCasesToXlsx() {
+
+    if (typeof XLSX === "undefined") {
+
+        console.error(
+            "XLSX library is not loaded."
+        );
+
+        // alert(
+        //     "Excel export library is not loaded. " +
+        //     "Please check that xlsx.full.min.js is loaded."
+        // );
+ alert("{{ snippets['CAT_Error_LibraryNotLoad'] }}");
+        return;
+    }
+
+    var rowsToExport;
+
+    if (typeof getFilteredCaseRows === "function") {
+        rowsToExport =
+            getFilteredCaseRows();
+    } else {
+        rowsToExport =
+            $("#dealerCasesTable tbody tr[data-id]");
+    }
+
+    if (!rowsToExport || rowsToExport.length === 0) {
+        updateExportButtonState();
+        return;
+    }
+
+    var exportData = [];
+
+    exportData.push([
+        "Case Number",
+        "Status",
+        "Dealer Code",
+        "Date Opened",
+        "Product Technology",
+        "Subject",
+        "Description",
+        "Case Channel"
+    ]);
+
+    rowsToExport.each(function () {
+
+        var row = $(this);
+
+        var caseNumber =
+            row.attr("data-sort-case-number");
+
+        if (!caseNumber) {
+            caseNumber =
+                row.find("td").eq(1).text();
+        }
+
+        var status =
+            row.attr("data-sort-status");
+
+        if (!status) {
+            status =
+                row.find("td").eq(2).text();
+        }
+
+        var dealerCode =
+            row.attr("data-sort-dealer-code");
+
+        if (!dealerCode) {
+            dealerCode =
+                row.find("td").eq(3).text();
+        }
+
+        var dateOpened =
+            row.find("td").eq(4).text();
+
+        var productTechnology =
+            row.attr("data-sort-product");
+
+        if (!productTechnology) {
+            productTechnology =
+                row.find("td").eq(5).text();
+        }
+
+        var subject =
+            row.attr("data-sort-subject");
+
+        if (!subject) {
+            subject =
+                row.find("td").eq(6).text();
+        }
+
+        var description =
+            row.attr("data-sort-description");
+
+        if (!description) {
+            description =
+                row.find("td").eq(7).text();
+        }
+
+        var caseChannel =
+            row.attr("data-sort-channel");
+
+        if (!caseChannel) {
+            caseChannel =
+                row.find("td").eq(8).text();
+        }
+
+        exportData.push([
+            cleanExcelText(caseNumber),
+            cleanExcelText(status),
+            cleanExcelText(dealerCode),
+            cleanExcelText(dateOpened),
+            cleanExcelText(productTechnology),
+            cleanExcelText(subject),
+            cleanExcelText(description),
+            cleanExcelText(caseChannel)
+        ]);
+    });
+
+    var workbook =
+        XLSX.utils.book_new();
+
+    var worksheet =
+        XLSX.utils.aoa_to_sheet(exportData);
+
+    worksheet["!cols"] = [
+        { wch: 20 },
+        { wch: 22 },
+        { wch: 18 },
+        { wch: 22 },
+        { wch: 35 },
+        { wch: 40 },
+        { wch: 80 },
+        { wch: 22 }
+    ];
+
+    worksheet["!autofilter"] = {
+        ref: XLSX.utils.encode_range({
+            s: {
+                r: 0,
+                c: 0
+            },
+            e: {
+                r: exportData.length - 1,
+                c: exportData[0].length - 1
+            }
+        })
+    };
+
+    XLSX.utils.book_append_sheet(
+        workbook,
+        worksheet,
+        "All Cases"
+    );
+
+    var fileName =
+        "All_Cases_" +
+        getCurrentDateString() +
+        ".xlsx";
+
+    try {
+
+        XLSX.writeFile(
+            workbook,
+            fileName
+        );
+        showExportSuccessToast();
+
+    } catch (error) {
+
+        console.error(
+            "Excel export failed:",
+            error
+        );
+
+        alert(
+            "Unable to download the Excel file. " +
+            "Please try again."
+        );
+    }
+}
+
+
+function cleanExcelText(value) {
+
+    if (!value) {
+        return "";
+    }
+
+    return String(value)
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+
+function getCurrentDateString() {
+
+    var today =
+        new Date();
+
+    var yyyy =
+        today.getFullYear();
+
+    var mm =
+        String(
+            today.getMonth() + 1
+        ).padStart(2, "0");
+
+    var dd =
+        String(
+            today.getDate()
+        ).padStart(2, "0");
+
+    return yyyy + "-" + mm + "-" + dd;
+}
+
+var exportSuccessToastTimer = null;
+
+function showExportSuccessToast() {
+
+    var toast =
+        $("#exportSuccessToast");
+
+    if (toast.length === 0) {
+        return;
+    }
+
+    if (exportSuccessToastTimer) {
+        clearTimeout(exportSuccessToastTimer);
+    }
+
+    toast
+        .removeClass("show")
+        .attr("aria-hidden", "true");
+
+    void toast[0].offsetWidth;
+
+    toast
+        .addClass("show")
+        .attr("aria-hidden", "false");
+
+    exportSuccessToastTimer =
+        setTimeout(function () {
+
+            toast
+                .removeClass("show")
+                .attr("aria-hidden", "true");
+
+        }, 3000);
+}
+$(document).ready(function () {
+
+    setTimeout(function () {
+        updateExportButtonState();
+    }, 0);
+
+});
+</script>
+
+<!-- Export to excel custom button Ends -->
+
+<div class="table-wrapper">
+<table class="table table-hover" id="dealerCasesTable">
+<thead>
+<tr>
+<th class="pin-header"></th>
+ <th class="sortable-header" data-sort-key="caseNumber" data-sort-type="text">
+      Case Number <span class="sort-arrow"></span>
+    </th>
+<th class="sortable-header" data-sort-key="status" data-sort-type="text">
+    Status <span class="sort-arrow"></span>
+</th>
+<th class="sortable-header" data-sort-key="dealerCode" data-sort-type="numeric">
+    Dealer Code <span class="sort-arrow"></span>
+</th>
+<th class="sortable-header" data-sort-key="dateOpened" data-sort-type="datetime">
+      Date Opened <span class="sort-arrow"></span>
+    </th>
+<th class="sortable-header" data-sort-key="product" data-sort-type="text">
+      Product Technology <span class="sort-arrow"></span>
+<th class="sortable-header" data-sort-key="subject" data-sort-type="text">
+      Subject <span class="sort-arrow"></span>
+<th class="sortable-header" data-sort-key="description" data-sort-type="text">
+      Description <span class="sort-arrow"></span>
+<th class="sortable-header" data-sort-key="channel" data-sort-type="text">
+      Case Channel <span class="sort-arrow"></span>
+<th class="sortable-header" data-sort-key="survey" data-sort-type="text">
+      Survey Invite <span class="sort-arrow"></span>
+</tr>
+</thead>
+ 
+    <tbody>
+    {% if pinnedCases.results.entities.size > 0 %}
+    
+{% for case in pinnedCases.results.entities %}
+<tr 
+  data-id="{{ case.incidentid }}"
+  data-status-value="{{ case.cat_helpcenterstatus.value | default: case.cat_helpcenterstatus | default: '' | escape }}"
+  data-status-label="{{ case.cat_helpcenterstatus.label | default: case.cat_helpcenterstatus | default: '' | escape }}"
+  data-dealer-code="{{ case.cat_dealercode | default: '' | escape }}"
+  data-product-tech-value="{{ case.productid.id | default: case.productid | default: '' | escape }}"
+  data-product-tech-label="{{ case.productid.name | default: case.producttechnology | default: '' | escape }}"
+  data-support-type-value="{{ case.cat_supporttype_id.id | default: case.cat_supporttype_id.Id | default: case.cat_supporttype_id | downcase | strip | escape }}"
+data-support-type-label="{{ case.cat_supporttype_id.name | default: case.cat_supporttype_id.Name | strip | escape }}"
+
+data-secondary-support-type-value="{{ case.cat_secondarysupporttype_id.id | default: case.cat_secondarysupporttype_id.Id | default: case.cat_secondarysupporttype_id | downcase | strip | escape }}"
+data-secondary-support-type-label="{{ case.cat_secondarysupporttype_id.name | default: case.cat_secondarysupporttype_id.Name | strip | escape }}"
+
+data-case-origin-value="{{ case.caseorigincode.value | default: case.caseorigincode.Value | default: case.caseorigincode | downcase | strip | escape }}"
+data-case-origin-label="{{ case.caseorigincode.label | default: case.caseorigincode.Label | default: case.caseorigincode | strip | escape }}"
+
+data-persona-value="{{ case.allcasespersona.value | default: case.allcasespersona.Value | default: case.allcasespersona | downcase | strip | escape }}"
+data-persona-label="{{ case.allcasespersona.label | default: case.allcasespersona.Label | strip | escape }}"
+  data-created-on="{{ case.createdon | date: 'yyyy-MM-ddTHH:mm:ss' }}"
+
+    data-sort-case-number="{{ case.ticketnumber | default: '' | escape }}"
+    data-sort-date-opened="{{ case.createdon | date: 'yyyy-MM-ddTHH:mm:ss' }}"
+    data-sort-product="{{ case.producttechnology | default: '' | escape }}"
+    data-sort-subject="{{ case.title | default: '' | escape }}"
+    data-sort-description="{{ case.description | default: '' | escape }}"
+    data-sort-dealer-code="{{ case.cat_dealercode | default: '' | escape }}"
+    data-sort-status="{{ case.cat_helpcenterstatus.label | default: '' | escape }}"
+    data-sort-channel="{{ case.caseorigincode.label | default: '' | escape }}"
+    data-sort-survey="{{case.msdyn_casesurveyinviteurl | default: '' | escape }}"
+    data-search-text="
+    {{ case.ticketnumber | default: '' | strip_html | escape }}
+    {{ case.cat_helpcenterstatus.label | default: case.cat_helpcenterstatus | strip_html | escape }}
+    {{ case.cat_dealercode | default: '' | strip_html | escape }}
+    {{ case.createdon | default: '' | strip_html | escape }}
+    {{ case.producttechnology | default: '' | strip_html | escape }}
+    {{ case.title | default: '' | strip_html | escape }}
+    {{ case.description | default: '' | strip_html | escape }}
+    {{ case.caseorigincode.label | default: case.caseorigincode | strip_html | escape }}
+    {{ case.msdyn_casesurveyinviteurl | default: '' | strip_html | escape }}
+"
+    >
+<td class="pin-cell"></td>
+<td>{{ case.ticketnumber }}</td>
+<td>{{ case.cat_helpcenterstatus.label }}</td>
+<td>{{ case.cat_dealercode }}</td>
+<td>{{ case.createdon }}</td> 
+<td>{{ case.producttechnology }}</td>
+<td class="truncate-cell subject-cell" data-full="{{ case.title | default: '' | escape }}">
+  {{ case.title }}
+</td>
+<td class="truncate-cell description-cell" data-full="{{ case.description | default: '' | strip_html | escape }}">
+  {{ case.description }}
+</td>
+<td>{{ case.caseorigincode.label }}</td>
+<td>
+    {% if case.cat_requestedfrom.id == user.id %}
+        {% if case["surveyresponse.msfp_submitdate"] %}
+            <span>Response has already been submitted</span>
+    
+        {% elsif case.msdyn_casesurveyinviteurl %}
+            <a href="{{ case.msdyn_casesurveyinviteurl }}" target="_blank">
+                {{ case.msdyn_casesurveyinviteurl }}
+            </a>
+        {% endif %}
+    {% endif %}
+</td>
+</tr>
+{% endfor %}
+
+{% endif %}
+</tbody>
+</table>
+</div>
+
+<div id="emptyListMessageSnippet" style="display: none;">{% include 'snippet' snippet_name: 'CAT List/EmptyMessage' %}</div>
+
+
+{% endif %}
+
+
+<div id="dealerPagination" class="custom-pagination"></div>
+
+
+<!-- additional filter values -->
+
+<div id="listFilterOptionSource" style="display:none;">
+
+{% for item in allStatusOptions.results.entities %}
+  {% assign statusValue = item.cat_helpcenterstatus.value | default: item.cat_helpcenterstatus %}
+  {% assign statusLabel = item.cat_helpcenterstatus.label | default: item.cat_helpcenterstatus %}
+
+  {% if statusValue %}
+    <span
+      class="list-status-option"
+      data-value="{{ statusValue | escape }}"
+      data-label="{{ statusLabel | escape }}">
+    </span>
+  {% endif %}
+{% endfor %}
+
+{% for item in allDealerCodeOptions.results.entities %}
+  {% assign dealerCodeValue = item.cat_dealercode %}
+  {% if dealerCodeValue %}
+    <span
+      class="list-dealercode-option"
+      data-value="{{ dealerCodeValue | escape }}"
+      data-label="{{ dealerCodeValue | escape }}">
+    </span>
+  {% endif %}
+{% endfor %}
+
+{% for product in allProductOptions.results.entities %}
+  {% if product.productid %}
+    <span
+      class="list-product-option"
+      data-value="{{ product.productid | escape }}"
+      data-label="{{ product.name | default: product.productid | escape }}">
+    </span>
+  {% endif %}
+{% endfor %}    
+
+</div>
+
+
+<!-- Filter Drawer -->
+ <div id="caseFilterOverlay" class="case-filter-overlay"></div>
+
+<aside id="caseFilterPanel" class="case-filter-panel" aria-hidden="true">
+  <div class="case-filter-header">
+    <h3>Filter By</h3>
+    <button type="button" id="closeCaseFilter" class="case-filter-close" aria-label="Close filter panel">
+      &times;
+    </button>
+  </div>
+
+  <div class="case-filter-body">
+
+    <div class="filter-select-box" data-filter-key="status">
+      <label>Status</label>
+      <div class="selected-chip-container"></div>
+      <div class="filter-search-row">
+        <input type="text" placeholder="Search by Status" class="filter-search-input">
+        <i class="fa fa-chevron-down filter-chevron" aria-hidden="true"></i>
+      </div>
+      <div class="filter-options"></div>
+    </div>
+
+    <div class="filter-select-box" data-filter-key="dealerCode">
+        <label>Dealer Code</label>
+
+        <div class="selected-chip-container"></div>
+
+        <div class="filter-search-row">
+            <input type="text" placeholder="Search by Dealer Code" class="filter-search-input">
+            <i class="fa fa-chevron-down filter-chevron" aria-hidden="true"></i>
+        </div>
+
+        <div class="filter-options"></div>
+    </div>
+
+    <div class="filter-select-box" data-filter-key="productTech">
+        <label>Product Tech</label>
+        <div class="selected-chip-container"></div>
+        <div class="filter-search-row">
+            <input type="text" placeholder="Search by Product Tech" class="filter-search-input">
+            <i class="fa fa-chevron-down filter-chevron" aria-hidden="true"></i>
+        </div>
+        <div class="filter-options"></div>
+    </div>
+
+    <!-- Support Type filter -->
+<div
+  class="filter-select-box"
+  data-filter-key="supportType">
+  <label>Support Type</label>
+  <div class="selected-chip-container"></div>
+
+  <div class="filter-search-row">
+    <input
+      type="text"
+      placeholder="Search by Support Type"
+      class="filter-search-input"
+    />
+    <i
+      class="fa fa-chevron-down filter-chevron"
+      aria-hidden="true">
+    </i>
+  </div>
+
+  <div class="filter-options"></div>
+</div>
+
+<!-- Secondary Support Type filter -->
+<div
+  class="filter-select-box"
+  data-filter-key="secondarySupportType">
+  <label>Secondary Support Type</label>
+  <div class="selected-chip-container"></div>
+
+  <div class="filter-search-row">
+    <input
+      type="text"
+      placeholder="Search by Secondary Support Type"
+      class="filter-search-input"
+    />
+    <i
+      class="fa fa-chevron-down filter-chevron"
+      aria-hidden="true">
+    </i>
+  </div>
+
+  <div class="filter-options"></div>
+</div>
+
+<!-- Case Origin filter -->
+<div
+  class="filter-select-box"
+  data-filter-key="caseOrigin">
+  <label>Case Origin</label>
+  <div class="selected-chip-container"></div>
+
+  <div class="filter-search-row">
+    <input
+      type="text"
+      placeholder="Search by Case Origin"
+      class="filter-search-input"
+    />
+    <i
+      class="fa fa-chevron-down filter-chevron"
+      aria-hidden="true">
+    </i>
+  </div>
+
+  <div class="filter-options"></div>
+</div>
+
+<!-- Requested From Contact Persona filter -->
+<div
+  class="filter-select-box"
+  data-filter-key="persona">
+  <label>Persona</label>
+  <div class="selected-chip-container"></div>
+
+  <div class="filter-search-row">
+    <input
+      type="text"
+      placeholder="Search by Persona"
+      class="filter-search-input"
+    />
+    <i
+      class="fa fa-chevron-down filter-chevron"
+      aria-hidden="true">
+    </i>
+  </div>
+
+  <div class="filter-options"></div>
+</div>
+
+    <!-- Filter By Date (createdon) -->
+
+        <div class="date-filter-box" data-filter-key="dateOpened">
+        <label class="date-filter-title">Date Opened</label>
+
+        <div class="date-filter-field">
+            <label>From</label>
+
+            <div class="date-time-row">
+            <input type="date" id="dateOpenedFromDate" class="date-filter-input date-input">
+            <input type="time" id="dateOpenedFromTime" class="date-filter-input time-input">
+            </div>
+        </div>
+
+        <div class="date-filter-field">
+            <label>To</label>
+
+            <div class="date-time-row">
+            <input type="date" id="dateOpenedToDate" class="date-filter-input date-input">
+            <input type="time" id="dateOpenedToTime" class="date-filter-input time-input">
+            </div>
+        </div>
+        </div>
+
+  
+  </div>
+
+  <div class="case-filter-footer">
+    <button type="button" id="clearCaseFilters" class="clear-filter-btn">Clear All</button>
+    <button type="button" id="applyCaseFilters" class="apply-filter-btn">Apply</button>
+  </div>
+</aside>
+<!-- filter drawer ends -->
+
+
+</div>  
+</div>
+
+{% assign userRoles = user.roles %}
+{% assign isCustomer = false %}
+{% if user.roles contains "Cat_Customer Persona Role" %}
+{% assign isCustomer = true %}
+{% endif %}
+
+<script>
+
+document.addEventListener("DOMContentLoaded", function() {
+  const seen={};
+
+  document.querySelectorAll("#dealerCasesTable tbody tr[data-id]").forEach(function(row){
+    const id= row.getAttribute("data-id");
+    if(!id) return;
+    if(seen[id]){
+      row.remove();
+    }else{
+      seen[id]= true;
+    }
+  });
+});
+
+var isCustomer = {{ isCustomer | json }};
+
+let expandedRow = null;
+let cache = {};
+$(document).on("click", "#dealerCasesContainer table tbody tr", function () {
+    
+if ($(this).hasClass("no-filter-results-row")) {
+        return;
+    }
+
+   if (window.innerWidth < 768) {
+   $("body").addClass("mobile-detail-view");
+}
+
+   const row = $(this);
+   const recordId = row.attr("data-id");
+
+   if (window.innerWidth <= 768) {
+   $("#dealerCasesContainer").hide();
+   $("#mobile-case-view")
+       .show()
+       .html("<div style='padding:20px'>Loading...</div>");
+   $.ajax({
+       url: "/_api/incidents(" + recordId + ")" +
+            "?$select=ticketnumber," +
+            "_cat_tertiarysupporttype_value," +
+            "_cat_supporttype_id_value," +
+            "_cat_additionalapplications_value," +
+            "_cat_secondaryproducttechnology_id_value," +
+            "_cat_secondarysupporttype_id_value," +
+            "cat_contactname," +
+            "cat_language," +
+            "cat_additionalemail1," +
+            "cat_additionalemail2," +
+            "title," +
+            "_cat_requestedfrom_value," +
+            "description," +
+            "createdon," +
+            "caseorigincode," +
+            "_entitlementid_value," +
+            "_productid_value," +
+            "_customerid_value," +
+            "_parentcaseid_value," +
+            "isescalated," +
+            "escalatedon," +
+            "_cat_requestedfrom_value," +
+            "statecode," +
+            "cat_dealerresolution," +
+            "statecode,"+
+            "cat_caseresolutionnote",
+              method: "GET",
+       headers: { "Accept": "application/json" },
+      success: function (data) {
+        console.log(JSON.stringify(data).substring(0,500));
+        var contactID = data._cat_requestedfrom_value;
+     
+        getContactDetails(contactID, function(details){
+              const html = `
+                <div class="mobile-case-container">
+                <div class="mobile-header">
+                <span class="back-btn">←</span>
+                <h3>${data.ticketnumber}</h3>
+                </div>
+                <div class="accordion">
+                <!-- Case Details -->
+                <div class="accordion-item active">
+                <div class="accordion-header">Case Details</div>
+                <div class="accordion-body">
+                    <div class="field">
+                        <div class="label">Contact Name</div>
+                        <div class="value">${data.cat_contactname || "-"}</div>
+                    </div>
+                    <div class="field">
+                        <div class="label">Persona</div>
+                        <div class="value">${details.personaLabel || "-"}</div>
+                    </div>
+                    <div class="field">
+                        <div class="label">Subject</div>
+                        <div class="value">${data.title}</div>
+                    </div>
+                    <div class="field">
+                        <div class="label">First Name</div>
+                        <div class="value">${details.firstname|| "-"}</div>
+                    </div>
+                    <div class="field">
+                        <div class="label">Description</div>
+                        <div class="value">${data.description}</div>
+                    </div>
+                    <div class="field">
+                        <div class="label">Last Name</div>
+                        <div class="value">${details.lastname|| "-"}</div>
+                    </div>
+                    <div class="field">
+                        <div class="label">Email</div>
+                        <div class="value">${details.email || "-"}</div>
+                    </div>
+                    <div class="field">
+                        <div class="label">Phone</div>
+                        <div class="value">${details.phone || "-"}</div>
+                    </div>
+                    <div class="field">
+                         <div class="label">Product Technology</div>
+                        <div class="value">${data["_productid_value@OData.Community.Display.V1.FormattedValue"] || "-"}</div>
+                    </div>
+                    <div class="field">
+                        <div class="label">Additional Applications</div>
+                        <div class="value">${data.cat_additionalapplications || "-"}</div>
+                    </div>
+                    <div class="field">
+                        <div class="label">Secondary Product Technology</div>
+                        <div class="value">${data["_cat_secondaryproducttechnology_id_value@OData.Community.Display.V1.FormattedValue"] || "-"}</div>
+                    </div>
+                    <div class="field">
+                        <div class="label">Support Type</div>
+                        <div class="value">${data["_cat_supporttype_id_value@OData.Community.Display.V1.FormattedValue"] || "-"}</div>
+                    </div>
+                    <div class="field">
+                        <div class="label">Secondary Support Type</div>
+                        <div class="value">${data["_cat_secondarysupporttype_id_value@OData.Community.Display.V1.FormattedValue"]  || "-"}</div>
+                    </div>
+                    <div class="field">
+                         <div class="label">Tertiary Support Type</div>
+                        <div class="value">${data["_cat_tertiarysupporttype_value@OData.Community.Display.V1.FormattedValue"] || "-"}</div>
+                    </div>
+                    <div class="field">
+                        <div class="label">Asset Administration</div>
+                        <div class="value">${data.cat_asset || "-"}</div>
+                    </div>
+					<div class="field">
+                        <div class="label">Channel</div>
+                        <div class="value">${data["caseorigincode@OData.Community.Display.V1.FormattedValue"] || "-"}</div>
+                    </div>
+                    <div class="field">
+                        <div class="label">Language</div>
+                        <div class="value">${data["cat_language@OData.Community.Display.V1.FormattedValue"] || "-"}</div>
+                    </div>
+					<div class="field">
+                        <div class="label">Additional Email1</div>
+                        <div class="value">${data.cat_additionalemail1 || "-"}</div>
+                    </div>
+                    <div class="field">
+                        <div class="label">Additional Email2</div>
+                        <div class="value">${data.cat_additionalemail2 || "-"}</div>
+                    </div>
+                </div>
+            </div>
+<!-- Asset -->
+            <div class="accordion-item">
+           <!-- <div class="accordion-header">Asset Details</div> -->
+            <!--<div class="accordion-body">Asset content...</div> -->
+            <div class="accordion-item mobile-assets-accordion">
+                 <div class="accordion-header" data-mobile-tab="assets">
+                         Asset Details
+                 </div>  
+
+                <div class="accordion-body">
+                    <div class="case-assets-panel mobile-case-assets-panel"
+                        data-case-id="${recordId}">
+
+                        <div class="case-assets-top">
+                            <div class="case-assets-summary">
+                                Assets
+                            </div>                            
+                        </div>
+                            <div class="case-asset-message"></div>
+
+                            <div class="case-assets-empty-message" style="display:none;">
+                                No ASSETS found.
+                            </div>
+
+                            <table class="case-assets-table mobile-assets-table">
+                                <thead>
+                                    <tr>
+                            <th>Serial Number</th>
+                            <th>Make</th>
+                            <th>Equipment List</th>
+                            <th>Device Model</th>
+                            <th>Radio Serial Number</th>
+                            <th>SMU Hours</th>
+                            <th>SMU Value</th>
+                            <th>Latest Status</th>
+                            <th>Last Location</th>
+                            <th>Geo Location</th>  
+                            <th>Model</th>
+                            <th>Dealer Code</th>
+                            <th>Ownership</th>
+                            <th>DCN</th>
+                            <th>CCID</th>
+                            <th>CCID Name</th>
+                            <th>Latest Reported Date</th>
+                            <th>Asset Type</th>
+                        </tr>
+                                </thead>
+
+                                <tbody>
+                                    <tr>
+                                        <td colspan="5">Loading...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                    </div>
+                </div>
+            </div>
+            </div>
+            </div>
+<!-- Email -->
+<!-- Resolution -->
+<div class="accordion-item">
+    ${!isCustomer ? `<div class="accordion-header">Resolution Details</div>` : ``}
+
+    <div class="accordion-body">
+        <div class="field">
+            <div class="label">Case Resolution Notes</div>
+            <div class="value">${data.cat_caseresolutionnote || "-"}</div>
+        </div>
+
+        <div class="field">
+            <div class="label">Resolution Status</div>
+            <div class="value">${data["statecode@OData.Community.Display.V1.FormattedValue"] || "-"}</div>
+        </div>
+
+        <div class="field">
+            <div class="label">Dealer Resolution</div>
+            <div class="value">${data.cat_dealerresolution || "-"}</div>
+        </div>
+    </div>
+</div>
+<div class="accordion-item mobile-emails-accordion">
+        <div class="accordion-header" data-mobile-tab="emails">
+        Email Feed
+        </div>
+
+            <div class="accordion-body">
+                <div class="case-emails-panel mobile-case-emails-panel"
+                    data-case-id="${recordId}">
+
+                    <div class="case-emails-top">
+                        <div class="case-emails-summary">
+                            Emails
+                        </div>
+
+                        
+                </div>
+
+                    <div class="case-emails-message"></div>
+
+                    <div class="case-emails-empty-message" style="display:none;">
+                        No emails found.
+                    </div>
+
+                    <table class="case-emails-table mobile-emails-table">
+                        <thead>
+                            <tr>
+                                <th>Action</th>
+                                <th>Subject</th>
+                                <th>File</th>
+                                <th>To Address</th>
+                                <th>Status</th>
+                                <th>Date</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            <tr>
+                                <td colspan="5">Loading...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                </div>
+    
+</div>
+</div>
+
+<!-- Attachments -->
+<div class="accordion-item mobile-attachments-accordion">
+    <div class="accordion-header" data-mobile-tab="attachments">
+        Attachments/Files
+    </div>
+
+    <div class="accordion-body">
+        <div class="case-attachments-panel mobile-case-attachments-panel"
+             data-case-id="${recordId}">
+
+            <div class="case-attachments-top">
+                <div class="case-attachments-summary">
+                    Attachments
+                </div>
+
+                <button type="button" class="case-add-attachment-btn">
+                    + Add New
+                </button>
+
+                <input
+                    type="file"
+                    class="case-attachment-file-input"
+                    multiple
+                    style="display:none;"
+                />
+            </div>
+
+            <div class="case-attachment-message"></div>
+
+            <div class="case-attachments-empty-message" style="display:none;">
+                No attachments found.
+            </div>
+
+            <table class="case-attachments-table mobile-attachments-table">
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>Owner</th>
+                        <th>Last Modified</th>
+                        <th>Size</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    <tr>
+                        <td colspan="5">Loading...</td>
+                    </tr>
+                </tbody>
+            </table>
+
+        </div>
+    </div>
+</div>
+</div>
+</div>
+</div>
+
+`;
+   $("#mobile-case-view").html(html);
+           });
+       },error: function(xhr) {
+        
+        // alert("Mobile incident failed\n" +"Status: " + xhr.status);
+        alert(
+            "{{ snippets['CAT_Error_MobileViewFail'] }}" +
+            "\nStatus: " +
+            xhr.status
+        );
+        console.log(xhr.responseText);
+        }
+   });
+   return; 
+}
+
+   if (!recordId) return;
+   //Toggle collapse
+   if (expandedRow && expandedRow.is(row)) {
+       row.next(".case-details").stop(true, true).slideUp(200, function () {
+           $(this).remove();
+       });
+       expandedRow = null;
+       return;
+   }
+   
+   $(".case-details").stop(true, true).slideUp(200, function () {
+       $(this).remove();
+   });
+   expandedRow = row;
+   if (cache[recordId]) {
+       renderRow(row, cache[recordId]);
+       return;
+   }
+   //Show loading skeleton
+   const loadingHtml = `
+<tr class="case-details">
+<td colspan="10">
+<div style="padding:20px;">Loading...</div>
+</td>
+</tr>
+   `;
+   row.after(loadingHtml);
+   //API call
+   $.ajax({
+       url: "/_api/incidents(" + recordId + ")?$select=ticketnumber,_cat_tertiarysupporttype_value,_cat_supporttype_id_value,_cat_additionalapplications_value,_cat_secondaryproducttechnology_id_value,_cat_secondarysupporttype_id_value,_cat_supporttype_id_value,_cat_supporttype_id_value,cat_contactname,cat_language,cat_additionalemail1,cat_additionalemail2,title,description,createdon,caseorigincode,_entitlementid_value,_productid_value,_customerid_value,_parentcaseid_value,isescalated,escalatedon,_cat_requestedfrom_value,statecode,cat_dealerresolution,cat_caseresolutionnote",
+       method: "GET",
+       headers: { "Accept": "application/json" },
+       success: function (data) {
+         var contactID=data._cat_requestedfrom_value;
+       if(contactID){
+            $.ajax({
+                url: "/_api/contacts(" + contactID + ")" + "?$select=firstname,lastname,emailaddress1,cat_persona,address1_telephone1",
+                method: "GET",
+                headers: {
+                    "Accept": "application/json",
+                    "Prefer": "odata.include-annotations=*"
+                },
+                success:function(contact){
+                    contactDetails={firstname:contact.firstname, lastname:contact.lastname,email:contact.emailaddress1,persona:contact.cat_persona,phone:contact.address1_telephone1,personaLabel:contact["cat_persona@OData.Community.Display.V1.FormattedValue"] || "-"};
+                    cache[recordId] = data;
+                    row.next(".case-details").remove();
+                    renderRow(row, data);
+                }
+            })
+        }
+
+       // console.log("Success: ", data);
+           
+
+       }
+   });
+});
+ 
+function getContactDetails(contactId, callback) {
+
+    if (contactId) {
+
+        $.ajax({
+            url: "/_api/contacts(" + contactId + ")?$select=firstname,lastname,emailaddress1,cat_persona,address1_telephone1",
+            method: "GET",
+            headers: {
+                "Accept": "application/json",
+                "Prefer": "odata.include-annotations=*"
+            },
+            success: function(contact) {
+                callback({
+                    firstname: contact.firstname || "-",
+                    lastname: contact.lastname || "-",
+                    email: contact.emailaddress1 || "-",
+                    phone: contact.address1_telephone1 || "-",
+                    personaLabel: contact["cat_persona@OData.Community.Display.V1.FormattedValue"] || "-"
+                });
+            },
+            error: function() {
+                callback({
+                    firstname: "-",
+                    lastname: "-",
+                    email: "-",
+                    phone: "-",
+                    personaLabel: "-"
+                });
+            }
+        });
+
+    } else {
+
+        callback({
+            firstname: "-",
+            lastname: "-",
+            email: "-",
+            phone: "-",
+            personaLabel: "-"
+        });
+
+    }
+} 
+ 
+// Render function
+function renderRow(row, data) {
+
+let hideResolution = isCustomer;
+
+
+   const html = `
+<tr class="case-details" style="display:none;">
+<td colspan="10">
+<div class="case-expand">
+
+      <div class="expand-actions">
+        <button class="open-popup-btn"
+                data-id="${row.attr("data-id")}">
+          <i class="fa-solid fa-up-right-and-down-left-from-center" style = "font-variant: all-petite-caps;"></i>
+        </button>
+      </div>
+<!-- Tabs -->
+<div class="case-tabs">
+<div class="case-tab active" data-tab="details">Case Details</div>
+<div class="case-tab" data-tab="asset">Asset Details</div>
+
+${!isCustomer ? `<div class="case-tab" data-tab="resolution">Resolution Details</div>` : ``}
+<div class="case-tab" data-tab="email">Email Feed</div>
+<div class="case-tab" data-tab="attachments">Attachments</div>
+</div>
+<!-- Panels -->
+<div class="case-panel active" id="details">
+<div class="case-grid">
+<div>
+   <label>Contact Name</label>
+   <p>${data.cat_contactname || "-"}</p>
+</div>
+<div>
+   <label>Persona</label>
+   <p>${contactDetails.personaLabel || "-"}</p>
+</div>
+<div>
+   <label>Account Name</label>
+   <p>${data["_customerid_value@OData.Community.Display.V1.FormattedValue"] || "-"}</p>
+</div>
+<div>
+   <label>Subject</label>
+   <p>${data.title || "-"}</p>
+</div>
+ 
+<div>
+   <label>First Name</label>
+   <p>${contactDetails.firstname || "-"}</p>
+</div>
+<div>
+   <label>Description</label>
+   <p>${data.description || "-"}</p>
+</div>
+ <div>
+   <label>Last Name</label>
+   <p>${contactDetails.lastname || "-"}</p>
+</div>
+<div>
+   <label>Email</label>
+   <p>${contactDetails.email || "-"}</p>
+</div>
+ 
+<div>
+   <label>Phone</label>
+   <p>${contactDetails.phone || "-"}</p>
+</div>
+<div>
+   <label>Product Technology</label>
+   <p>${data["_productid_value@OData.Community.Display.V1.FormattedValue"] || "-"}</p>
+</div>
+<div>
+   <label>Additional Applications</label>
+   <p>${data["_cat_additionalapplications_value@OData.Community.Display.V1.FormattedValue"] || "-"}</p>
+</div>
+<div>
+   <label>Secondary Product Technology</label>
+   <p>${data["_cat_secondaryproducttechnology_id_value@OData.Community.Display.V1.FormattedValue"] || "-"}</p>
+</div>
+<div>
+   <label>Support Type</label>
+   <p>${data["_cat_supporttype_id_value@OData.Community.Display.V1.FormattedValue"]  || "-"}</p>
+</div>
+<div>
+   <label>Secondary Support Type</label>
+   <p>${data["_cat_secondarysupporttype_id_value@OData.Community.Display.V1.FormattedValue"]  || "-"}</p>
+</div>
+<div>
+   <label>Tertiary Support Type</label>
+   <p>${data["_cat_tertiarysupporttype_value@OData.Community.Display.V1.FormattedValue"] || "-"}</p>
+</div>
+<div>
+   <label>Asset Administration</label>
+   <p>${data.cat_asset || "-"}</p>
+</div>
+<div>
+   <label>Channel</label>
+   <p>${data["caseorigincode@OData.Community.Display.V1.FormattedValue"] || "-"}</p>
+</div>
+<div>
+   <label>Language</label>
+   <p>${data["cat_language@OData.Community.Display.V1.FormattedValue"] || "-"}</p>
+</div>
+<div>
+   <label>Additional Email 1 </label>
+   <p>${data.cat_additionalemail1 || "-"}</p>
+</div>
+<div>
+   <label>Additional Email 2</label>
+   <p>${data.cat_additionalemail2 || "-"}</p>
+</div>
+ 
+
+</div>
+</div>
+
+
+<!---Asset Panel-->
+<div class="case-panel case-asset-panel"
+     id="asset"
+     data-case-id="${row.attr("data-id")}">
+
+    <div class="case-assets-top">
+        <div class="case-assets-summary">
+            Asset Details
+        </div>
+    </div>
+
+    <table class="case-assets-table">
+        <thead>
+            <tr>
+                <th>Serial Number</th>
+                <th>Make</th>
+                <th>Equipment List</th>
+                <th>Device Model</th>
+                <th>Radio Serial Number</th>
+                <th>SMU Hours</th>
+                <th>SMU Value</th>
+                <th>Latest Status</th>
+                <th>Last Location</th>
+                <th>Geo Location</th>
+                <th>Model</th>
+                <th>Dealer Code</th>
+                <th>Ownership</th>
+                <th>DCN</th>
+                <th>CCID</th>
+                <th>CCID Name</th>
+                <th>Latest Reported Date</th>
+                <th>Asset Type</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td colspan="18">Loading...</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<!--Email Feed-->
+<div class="case-panel case-asset-panel"
+     id="email"
+     data-case-id="${row.attr("data-id")}">
+
+    <div class="case-emails-top">
+        <div class="case-emails-summary">
+            Email Details
+        </div>
+    </div>
+
+    <table class="case-emails-table">
+        <thead>
+            <tr>
+                <th>Action</th>
+                        <th>Subject</th>
+                        <th>File</th>
+                        <th>To Address</th>
+                        <th>Status</th>
+                        <th>Date</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td colspan="18">Loading...</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<!--Resolution Feed-->
+<!--${!isCustomer ? `<div class="case-panel" id="resolution">Resolution content...</div>` : ``}-->
+<!--<div class="case-panel" id="resolution">Resolution content...</div> -->
+<div class="case-panel case-resolution-panel" id="resolution" data-case-id="${row.attr("data-id")}">
+    <div class="case-resolutions-top">
+      
+    </div>
+    <div>
+        <label>Case Resolution Notes</label>
+        <p>${data.cat_caseresolutionnote || "-"}</p>
+    </div>
+    <div>
+        <label>Resolution Status</label>
+        <p>${data["statecode@OData.Community.Display.V1.FormattedValue"]  || "-"}</p>
+    </div>
+    <div>
+        <label>Dealer Resolution</label>
+        <p>${data.cat_dealerresolution || "-"}</p>
+    </div>
+</div>
+
+
+
+<div class="case-panel" id="asset">Asset content...</div>
+<div class="case-panel" id="email">Email content...</div>
+${!isCustomer ? `<div class="case-panel" id="resolution">Resolution content...</div>` : ``}
+<div class="case-panel case-attachments-panel" id="attachments" data-case-id="${row.attr("data-id")}">
+
+    <div class="case-attachments-top">
+        <div class="case-attachments-summary">
+            Loading attachments...
+        </div>
+
+        <button type="button" class="case-add-attachment-btn">
+            + Add New
+        </button>
+
+        <input
+            type="file"
+            class="case-attachment-file-input"
+            multiple
+            style="display:none;"
+        />
+    </div>
+
+    <div class="case-attachment-message"></div>
+
+    <table class="case-attachments-table">
+        <thead>
+            <tr>
+                <th>Title</th>
+                <th>Owner</th>
+                <th>Last Modified</th>
+                <th>Size</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            <tr>
+                <td colspan="5">Loading...</td>
+            </tr>
+        </tbody>
+    </table>
+
+</div>
+
+</div>
+ 
+      </td>
+</tr>
+   `;
+   row.after(html);
+   //Smooth expand
+   row.next(".case-details").slideDown(250);
+
+   console.log("Hide resolution:", hideResolution);
+
+}
+
+
+ 
+// Tabs 
+
+$(document).on("click", ".case-tab", function () {
+    const tab = $(this).data("tab");
+    $(this).siblings().removeClass("active");
+    $(this).addClass("active");
+    const container = $(this).closest(".case-expand");
+    container.find(".case-panel").removeClass("active").hide();
+    const panel = container.find("#" + tab);
+    panel.fadeIn(150).addClass("active");
+    if (tab === "asset") {
+         const caseId = panel.attr("data-case-id");
+        if (!caseId) {
+            return;
+        }
+        loadCaseAssets(caseId, panel);
+    }
+    if (tab === "email") {
+         const caseId = panel.attr("data-case-id");
+        if (!caseId) {
+            return;
+        }
+        loadCaseEmails(caseId, panel);
+    }
+
+    if (tab === "attachments") {
+        const caseId = panel.attr("data-case-id");
+        if (!caseId) {
+            console.error("Case Id not found for attachment panel.");
+            return;
+        }
+        setAttachmentInputAccept(panel);
+        loadCaseAttachments(caseId, panel);
+    }
+});
+$(document).on("click", ".accordion-header[data-mobile-tab='assets']", function () {
+
+    const panel = $(this)
+        .closest(".accordion-item")
+        .find(".mobile-case-assets-panel");
+
+    const caseId = panel.attr("data-case-id");
+
+    if (!caseId) return;
+
+    loadCaseAssets(caseId, panel);
+});
+
+
+$(document).on("click", ".accordion-header[data-mobile-tab='emails']", function () {
+
+    const panel = $(this)
+        .closest(".accordion-item")
+        .find(".mobile-case-emails-panel");
+
+    const caseId = panel.attr("data-case-id");
+
+    if (!caseId) return;
+
+    if (panel.attr("data-emails-loaded") === "true") {
+        return;
+    }
+
+    loadCaseEmails(caseId, panel);
+
+    panel.attr("data-emails-loaded", "true");
+});
+
+
+
+// BACK BUTTON
+$(document).on("click", ".back-btn", function () {
+ $("#mobile-case-view").hide();
+ $("#dealerCasesContainer").show();
+});// BACK BUTTON
+$(document).on("click", ".back-btn", function () {
+ $("#mobile-case-view").hide();
+ $("#dealerCasesContainer").show();
+});
+
+$(document).on("click", ".accordion-header", function () {
+   const item = $(this).closest(".accordion-item");
+   // close others
+   $(".accordion-item").not(item).removeClass("active");
+   // toggle current
+   item.toggleClass("active");
+});
+
+$(document).on("click", ".back-btn", function () {
+   $("body").removeClass("mobile-detail-view");
+});
+
+// ==================== PAGINATION ====================
+ 
+// $(document).ready(function () {
+ 
+//     const rowsPerPage = 10;
+ 
+//     const rows = $("#dealerCasesTable tbody tr[data-id]");
+ 
+//     if (rows.length === 0) {
+//         return;
+//     }
+ 
+//     const totalPages = Math.ceil(rows.length / rowsPerPage);
+ 
+//     let currentPage = 1;
+ 
+//     function showPage(page) {
+ 
+//         currentPage = page;
+ 
+//         rows.hide();
+ 
+//         const start = (page - 1) * rowsPerPage;
+//         const end = start + rowsPerPage;
+ 
+//         rows.slice(start, end).show();
+ 
+//         renderPagination();
+//     }
+ 
+//     function renderPagination() {
+ 
+//         let html = '';
+ 
+//         html += `
+// <button class="page-btn prev-btn"
+//                 ${currentPage === 1 ? 'disabled' : ''}>
+// &#10094;
+// </button>
+//         `;
+ 
+//         for (let i = 1; i <= totalPages; i++) {
+ 
+//             html += `
+// <button
+//                     class="page-btn page-number
+//                     ${currentPage === i ? 'active' : ''}"
+//                     data-page="${i}">
+//                     ${i}
+// </button>
+//             `;
+//         }
+ 
+//         html += `
+// <button class="page-btn next-btn"
+//                 ${currentPage === totalPages ? 'disabled' : ''}>
+// &#10095;
+// </button>
+//         `;
+ 
+//         $("#dealerPagination").html(html);
+//     }
+ 
+//     $(document).on("click", ".page-number", function () {
+ 
+//         showPage(
+//             parseInt($(this).data("page"))
+//         );
+ 
+//     });
+ 
+//     $(document).on("click", ".prev-btn", function () {
+ 
+//         if (currentPage > 1) {
+ 
+//             showPage(currentPage - 1);
+ 
+//         }
+ 
+//     });
+ 
+//     $(document).on("click", ".next-btn", function () {
+ 
+//         if (currentPage < totalPages) {
+ 
+//             showPage(currentPage + 1);
+ 
+//         }
+ 
+//     });
+ 
+//     showPage(1);
+ 
+// });
+
+// ===========================  Attachments  =========================
+
+window.portalCurrentContact = {
+    id: "{{ user.id | default: '' }}",
+    name: "{{ user.fullname | default: user.name | default: '' | escape }}"
+};
+
+
+// ==================== MOBILE ATTACHMENTS ACCORDION LOAD ====================
+
+$(document).on("click", ".accordion-header[data-mobile-tab='attachments']", function () {
+    const item = $(this).closest(".accordion-item");
+    const panel = item.find(".case-attachments-panel");
+    const caseId = panel.attr("data-case-id");
+
+    if (!caseId) {
+        console.error("Mobile attachment case id not found.");
+        return;
+    }
+
+    // Prevent multiple reloads unless you want refresh every click
+    if (panel.attr("data-attachments-loaded") === "true") {
+        return;
+    }
+
+    if (typeof setAttachmentInputAccept === "function") {
+        setAttachmentInputAccept(panel);
+    }
+
+    loadCaseAttachments(caseId, panel);
+
+    panel.attr("data-attachments-loaded", "true");
+});
+
+
+// ==================== CASE ATTACHMENTS - BUTTON ONLY ====================
+
+function safeAjax(ajaxOptions) {
+    var deferredAjax = $.Deferred();
+
+    shell.getTokenDeferred()
+        .done(function (token) {
+            ajaxOptions.headers = ajaxOptions.headers || {};
+            ajaxOptions.headers["__RequestVerificationToken"] = token;
+
+            $.ajax(ajaxOptions)
+                .done(deferredAjax.resolve)
+                .fail(deferredAjax.reject);
+        })
+        .fail(deferredAjax.reject);
+
+    return deferredAjax.promise();
+}
+
+// Raw content snippet value.
+// Snippet name: CAT Webform Upload Allow File Type
+// Example value: jpg,jpeg,png,gif,svg,js,css,zip,doc,docx,xls,xlsx,ppt,pptx,pdf,woff,ttf
+window.caseAttachmentAllowedFileTypesRaw = "{{ snippets['CAT Document Upload Allow File Type'] | default: '' }}";
+
+const CASE_ATTACHMENT_API = {
+    entitySetName: "annotations",
+    logicalName: "annotation",
+
+    caseEntitySetName: "incidents",
+
+    // Annotation -> Case relationship/schema name used in Web API.
+    // This binds the uploaded attachment to the Case.
+    caseBindProperty: "objectid_incident@odata.bind"
+};
+
+const CASE_ATTACHMENT_ALLOWED_EXT = buildAllowedExtensionSet(
+    window.caseAttachmentAllowedFileTypesRaw
+);
+
+const CASE_ATTACHMENT_MIME_TYPES = {
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    png: "image/png",
+    gif: "image/gif",
+    svg: "image/svg+xml",
+
+    js: "text/javascript",
+    css: "text/css",
+
+    zip: "application/zip",
+
+    doc: "application/msword",
+    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    xls: "application/vnd.ms-excel",
+    xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ppt: "application/vnd.ms-powerpoint",
+    pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+
+    pdf: "application/pdf",
+
+    woff: "font/woff",
+    ttf: "font/ttf"
+};
+
+// Adjust if your Dataverse / Power Pages limit is different.
+window.caseAttachmentAllowedMaxFilesRaw =
+    "{{ snippets['CAT Webform Upload Allow Max Files'] | default: '5' }}";
+
+window.caseAttachmentAllowedFileSizeMbRaw =
+    "{{ snippets['CAT Webform Upload Allow File Size (MB)'] | default: '25' }}";
+
+const CASE_ATTACHMENT_MAX_FILES_PER_UPLOAD =
+    parsePositiveInteger(window.caseAttachmentAllowedMaxFilesRaw, 5);
+
+const CASE_ATTACHMENT_MAX_FILE_SIZE_MB =
+    parsePositiveInteger(window.caseAttachmentAllowedFileSizeMbRaw, 25);
+
+const CASE_ATTACHMENT_MAX_FILE_SIZE_BYTES =
+    CASE_ATTACHMENT_MAX_FILE_SIZE_MB * 1024 * 1024;
+
+
+function parsePositiveInteger(value, fallbackValue) {
+    const parsed = parseInt(String(value || "").trim(), 10);
+
+    if (isNaN(parsed) || parsed <= 0) {
+        return fallbackValue;
+    }
+
+    return parsed;
+}
+
+// ==================== LOAD ATTACHMENTS WHEN TAB OPENS ====================
+
+$(document).on("click", ".case-tab[data-tab='attachments']", function () {
+    const container = $(this).closest(".case-expand");
+    const panel = container.find(".case-attachments-panel");
+    const caseId = panel.attr("data-case-id");
+
+    if (!caseId) {
+        console.error("Case Id not found for attachment panel.");
+        return;
+    }
+
+    setAttachmentInputAccept(panel);
+    loadCaseAttachments(caseId, panel);
+});
+
+
+// ==================== ADD NEW BUTTON ====================
+
+$(document).on("click", ".case-add-attachment-btn", function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const panel = $(this).closest(".case-attachments-panel");
+
+    setAttachmentInputAccept(panel);
+
+    panel.find(".case-attachment-file-input").trigger("click");
+});
+
+
+// ==================== FILE SELECTED ====================
+
+$(document).on("change", ".case-attachment-file-input", function () {
+    const input = this;
+    const panel = $(input).closest(".case-attachments-panel");
+    const caseId = panel.attr("data-case-id");
+    const files = Array.from(input.files || []);
+
+    input.value = "";
+
+    if (!caseId || files.length === 0) return;
+
+    handleCaseAttachmentFiles(caseId, files, panel);
+});
+//==================ASSETS============================
+function loadCaseAssets(caseId, panel) {
+    const tbody = panel.find(".case-assets-table tbody");
+    const summary = panel.find(".case-assets-summary");
+    panel.find(".case-assets-message").removeClass("error success info").text("");
+    summary.text("Assets");
+    tbody.html(`
+        <tr>
+            <td colspan="18">Loading...</td>
+        </tr>
+    `);
+    
+     const url =
+          "/_api/cat_assets" +
+          "?$select=cat_model,_ownerid_value,_cat_provideddealer_value,cat_make,cat_lastlocation,cat_equipmenttype,cat_geolocation,cat_dcn,cat_ccid,cat_ccidname,cat_latestreporteddate,_cat_case_value,cat_serialnumber,cat_equipmentid,cat_provideddevicemodel,cat_plradioserialnumber,cat_smuhours,cat_smuvalue,cat_lateststatus" +
+          "&$filter=_cat_case_value eq " + cleanGuid(caseId);
+      safeAjax({
+          type: "GET",
+          url: url,
+          contentType: "application/json",
+          headers: {
+              "Accept": "application/json",
+              "Prefer": 'odata.include-annotations="OData.Community.Display.V1.FormattedValue"'
+          },
+          success: function (response) {
+           console.log("Full Response", response);
+            console.log("Assets", response.value);
+            console.log("Asset Count", response.value?.length);
+            renderAssetRows(response.value || [], panel);
+            console.log("ResponseText:" +response.responseText);
+          },
+          error: function (xhr) {
+              console.error("Assets load failed");
+              console.error("Status:", xhr.status);
+              console.error("Response:", xhr.responseText);
+              summary.text("Assets");
+              
+            tbody.html(`
+                <tr>
+                    <td colspan="5" class="case-assets-empty">
+                        Unable to load Assets
+                    </td>
+                </tr>
+            `);
+              showCaseAssetMessage(panel,"error","Unable to load assets. Status: " + xhr.status + ". Check console responseText for the exact Web API error." );
+          }
+      });
+  }
+
+
+
+
+function renderAssetRows(records, panel) {
+    const tbody = panel.find(".case-assets-table tbody");
+    const summary = panel.find(".case-assets-summary");
+    if (!records || records.length === 0) {
+        summary.text("0 files");
+        tbody.html(`
+            <tr>
+                <td colspan="18">No Asset Records Found</td>
+            </tr>
+        `);
+        return;
+    }
+    let html = "";
+    records.forEach(function(asset) {
+        html += `
+            <tr>
+                <td>${asset.cat_serialnumber || "-"}</td>
+                <td>${asset.cat_make || "-"}</td>
+                <td>${asset.cat_equipmentid || "-"}</td>
+                <td>${asset.cat_provideddevicemodel || "-"}</td>
+                <td>${asset.cat_plradioserialnumber || "-"}</td>
+                <td>${asset.cat_smuhours || "-"}</td>
+                <td>${asset.cat_smuvalue || "-"}</td>
+                <td>${asset.cat_lateststatus || "-"}</td>
+                <td>${asset.cat_lastlocation || "-"}</td>
+                <td>${asset.cat_geolocation || "-"}</td>
+                <td>${asset.cat_model || "-"}</td>
+                <td>${asset["_cat_provideddealer_value@OData.Community.Display.V1.FormattedValue"] || "-"}</td>
+                <td>${asset["_ownerid_value@OData.Community.Display.V1.FormattedValue"] || "-"}</td>
+                <td>${asset.cat_dcn || "-"}</td>
+                <td>${asset.cat_ccid || "-"}</td>
+                <td>${asset.cat_ccidname || "-"}</td>
+                <td>${asset.cat_latestreporteddate ? new Date(asset.cat_latestreporteddate).toLocaleDateString('en-GB') : "-"}</td>
+                <td>${asset["cat_equipmenttype@OData.Community.Display.V1.FormattedValue"] || "-"}</td>
+               
+            </tr>
+        `;
+    });
+
+    tbody.html(html);
+}
+
+function loadCaseEmails(caseId, panel) {
+   // alert("caseId: "+caseId);
+    const tbody = panel.find(".case-emails-table tbody");
+    const summary = panel.find(".case-emails-summary");
+    panel.find(".case-emails-message").removeClass("error success info").text("");
+    summary.text("Emails");
+    tbody.html(`
+        <tr>
+            <td colspan="18">Loading...</td>
+        </tr>
+    `);
+    
+     const url =
+          "/_api/emails" +
+          "?$select=activityid,subject,createdon,activitytypecode,description,torecipients" +
+          "&$filter=_regardingobjectid_value eq " + caseId;
+      
+      safeAjax({
+          type: "GET",
+          url: url,
+          contentType: "application/json",
+          headers: {
+              "Accept": "application/json",
+              "Prefer": 'odata.include-annotations="OData.Community.Display.V1.FormattedValue"'
+          },
+          success: function (response) {
+            renderEmailRows(response.value || [], panel);
+            console.log("ResponseText:" +response.responseText);
+          },
+          error: function (xhr) {
+              console.error("emails load failed");
+              console.error("Status:", xhr.status);
+              console.error("Response:", xhr.responseText);
+              summary.text("Assets");
+              
+            tbody.html(`
+                <tr>
+                    <td colspan="5" class="case-emails-empty">
+                        Unable to load Emails
+                    </td>
+                </tr>
+            `);
+              showCaseEmailMessage(panel,"error","Unable to load assets. Status: " + xhr.status + ". Check console responseText for the exact Web API error." );
+          }
+      });
+  }
+
+
+
+
+function renderEmailRows(records, panel) {
+    const tbody = panel.find(".case-emails-table tbody");
+    const summary = panel.find(".case-emails-summary");
+    if (!records || records.length === 0) {
+        summary.text("0 files");
+        tbody.html(`
+            <tr>
+                <td colspan="18">No Emails Records Found</td>
+            </tr>
+        `);
+        return;
+    }
+    let html = "";
+    records.forEach(function(email) {
+        //Date
+       
+        html += `
+            <tr>
+                <td>-</td>
+                <td>${email.subject || "-"}</td>
+                <td>${email.description || "-"}</td>
+                <td>${email.toreceipients || "-"}</td>
+                <td>${email.from || "-"}</td>
+                <td>${email.createdon ? new Date(email.createdon).toLocaleDateString('en-GB') : "-"}</td>
+                
+                
+             
+            </tr>
+        `;
+    });
+
+    tbody.html(html);
+}
+
+
+// ==================== LOAD EXISTING ATTACHMENTS ====================
+
+function getPortalUploadedByName(noteText) {
+    if (!noteText) return "";
+
+    const match = String(noteText).match(/PortalUploadedBy=([^;]+)/i);
+
+    if (!match || !match[1]) return "";
+
+    return match[1].trim();
+}
+
+function loadCaseAttachments(caseId, panel) {
+    const tbody = panel.find(".case-attachments-table tbody");
+    const summary = panel.find(".case-attachments-summary");
+
+    const cleanCaseId = cleanGuid(caseId);
+
+    panel.find(".case-attachment-message")
+        .removeClass("error success info")
+        .text("");
+
+    summary.text("Attachments");
+    tbody.html(`<tr><td colspan="5">Loading...</td></tr>`);
+
+    const url =
+        "/_api/annotations" +
+        "?$select=annotationid,subject,notetext,filename,filesize,modifiedon,mimetype,isdocument,_ownerid_value,_objectid_value" +
+        "&$filter=_objectid_value eq " + cleanCaseId + " and isdocument eq true" +
+        "&$orderby=modifiedon desc";
+
+    safeAjax({
+        type: "GET",
+        url: url,
+        contentType: "application/json",
+        headers: {
+            "Accept": "application/json",
+            "Prefer": 'odata.include-annotations="OData.Community.Display.V1.FormattedValue"'
+        },
+        success: function (response) {
+            renderCaseAttachmentRows(response.value || [], panel);
+        },
+        error: function (xhr) {
+            console.error("Attachment load failed");
+            console.error("Status:", xhr.status);
+            console.error("Response:", xhr.responseText);
+
+            summary.text("Attachments");
+
+            tbody.html(`
+                <tr>
+                    <td colspan="5" class="case-attachments-empty">
+                        Unable to load attachments
+                    </td>
+                </tr>
+            `);
+
+            // showCaseAttachmentMessage(
+            //     panel,
+            //     "error",
+            //     "Unable to load attachments. Status: " +
+            //     xhr.status +
+            //     ". Check console responseText for the exact Web API error."
+            // );
+            showCaseAttachmentMessage(
+                panel,
+                "error",
+                "{{ snippets['CAT_Error_UnableToLoad'] }}" +
+                " " +
+                xhr.status +
+                ". " +
+                ". Check console responseText for the exact Web API error."
+            );
+        }
+    });
+}
+
+function cleanGuid(value) {
+    return String(value || "")
+        .replace("{", "")
+        .replace("}", "")
+        .trim();
+}
+
+function renderCaseAttachmentRows(records, panel) {
+    const tbody = panel.find(".case-attachments-table tbody");
+    const summary = panel.find(".case-attachments-summary");
+
+    if (!records || records.length === 0) {
+        summary.text("0 files");
+
+        tbody.html(`
+            <tr>
+                <td colspan="5" class="case-attachments-empty">
+                    No attachments found
+                </td>
+            </tr>
+        `);
+
+        return;
+    }
+
+    const totalSize = records.reduce(function (sum, item) {
+        return sum + Number(item.filesize || 0);
+    }, 0);
+
+    summary.text(
+        records.length +
+        " file" +
+        (records.length === 1 ? "" : "s") +
+        " | Total size: " +
+        formatCaseAttachmentSize(totalSize)
+    );
+
+    let html = "";
+
+    records.forEach(function (item) {
+        const title =
+            item.subject ||
+            removeCaseAttachmentExtension(item.filename) ||
+            item.filename ||
+            "-";
+
+        let owner =
+            getPortalUploadedByName(item.notetext) ||
+            item["_ownerid_value@OData.Community.Display.V1.FormattedValue"] ||
+            "-";
+
+        // Optional: hide managed identity-looking owner names
+        if (owner.indexOf("PPMI-") >= 0 || owner.indexOf("powerpagesmanagedidentity") >= 0) {
+            owner =
+                window.portalCurrentContact && window.portalCurrentContact.name
+                    ? window.portalCurrentContact.name
+                    : "-";
+        }
+        const modifiedOn =
+            item["modifiedon@OData.Community.Display.V1.FormattedValue"] ||
+            formatCaseAttachmentDate(item.modifiedon);
+
+        html += `
+            <tr>
+                <td>
+                    <span class="case-file-icon">
+                        ${escapeHtml(getCaseAttachmentExtensionLabel(item.filename))}
+                    </span>
+                    <span class="case-file-title">
+                        ${escapeHtml(title)}
+                    </span>
+                </td>
+
+                <td>${escapeHtml(owner)}</td>
+
+                <td>${escapeHtml(modifiedOn)}</td>
+
+                <td>${escapeHtml(formatCaseAttachmentSize(item.filesize))}</td>
+
+                <td>
+                    <button
+                        type="button"
+                        class="case-download-attachment-btn"
+                        title="Download"
+                        data-annotation-id="${escapeAttribute(item.annotationid)}">
+                        <span class="download-icon-svg" aria-hidden="true">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                                <path d="M12 3V15" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+                                <path d="M7 10L12 15L17 10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                                <path d="M5 20H19" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+                            </svg>
+                        </span>
+                    </button>
+                </td>
+            </tr>
+        `;
+    });
+
+    tbody.html(html);
+}
+
+
+// ==================== DOWNLOAD ONLY - NO EYE ICON ====================
+
+$(document).on("click", ".case-download-attachment-btn", function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const annotationId = $(this).attr("data-annotation-id");
+
+    if (!annotationId) return;
+
+    downloadCaseAttachment(annotationId);
+});
+
+function downloadCaseAttachment(annotationId) {
+    const url =
+        "/_api/" + CASE_ATTACHMENT_API.entitySetName +
+        "(" + annotationId + ")" +
+        "?$select=documentbody,filename,mimetype";
+
+    safeAjax({
+        type: "GET",
+        url: url,
+        contentType: "application/json",
+        headers: {
+            "Accept": "application/json"
+        },
+        success: function (record) {
+            if (!record || !record.documentbody) {
+                // alert("File content was not found.");
+                 alert("{{ snippets['CAT_Error_FileNotFound'] }}");
+                return;
+            }
+
+            const fileName = record.filename || "attachment";
+            const mimeType = record.mimetype || "application/octet-stream";
+
+            const blob = base64ToCaseAttachmentBlob(record.documentbody, mimeType);
+            const blobUrl = URL.createObjectURL(blob);
+
+            const link = document.createElement("a");
+            link.href = blobUrl;
+            link.download = fileName;
+
+            document.body.appendChild(link);
+            link.click();
+
+            document.body.removeChild(link);
+            URL.revokeObjectURL(blobUrl);
+        },
+        error: function (xhr) {
+            console.error("Attachment download failed:", xhr);
+            // alert("Unable to download attachment.");
+              alert("{{ snippets['CAT_Error_UnableDownload'] }}");
+        }
+    });
+}
+
+
+// ==================== VALIDATE + UPLOAD ====================
+
+function handleCaseAttachmentFiles(caseId, files, panel) {
+    panel.find(".case-attachment-message")
+        .removeClass("error success info")
+        .text("");
+
+    const selectedFiles = Array.from(files || []);
+
+    console.log("Allowed attachment extensions:", Array.from(CASE_ATTACHMENT_ALLOWED_EXT));
+    console.log("Max files per upload:", CASE_ATTACHMENT_MAX_FILES_PER_UPLOAD);
+    console.log("Max file size MB:", CASE_ATTACHMENT_MAX_FILE_SIZE_MB);
+
+    // ================================
+    // 1. Validate max files per upload
+    // ================================
+    if (selectedFiles.length > CASE_ATTACHMENT_MAX_FILES_PER_UPLOAD) {
+        showCaseAttachmentMessage(
+            panel,
+            "error",
+            "You can upload a maximum of " +
+            CASE_ATTACHMENT_MAX_FILES_PER_UPLOAD +
+            " files at a time."
+        );
+        return;
+    }
+
+    const rejectedType = [];
+    const rejectedTooBig = [];
+    const validFiles = [];
+
+    // ================================
+    // 2. Validate each file
+    // ================================
+    selectedFiles.forEach(function (file) {
+        const ext = getCaseAttachmentExt(file.name);
+        const size = Number(file.size || 0);
+
+        console.log("Selected file:", file.name, "Extension:", ext, "Size:", size);
+
+        // File type validation
+        if (!CASE_ATTACHMENT_ALLOWED_EXT.has(ext)) {
+            rejectedType.push(file.name);
+            return;
+        }
+
+        // Per-file size validation
+        if (size > CASE_ATTACHMENT_MAX_FILE_SIZE_BYTES) {
+            rejectedTooBig.push(
+                file.name + " (" + formatCaseAttachmentSize(size) + ")"
+            );
+            return;
+        }
+
+        validFiles.push(file);
+    });
+
+    // ================================
+    // 3. Show file type error
+    // ================================
+    if (rejectedType.length > 0) {
+        showCaseAttachmentMessage(
+            panel,
+            "error",
+            "These file types are not allowed: " +
+            rejectedType.join(", ") +
+            ". Allowed types: " +
+            Array.from(CASE_ATTACHMENT_ALLOWED_EXT).join(", ")
+        );
+        return;
+    }
+
+    // ================================
+    // 4. Show per-file size error
+    // ================================
+    if (rejectedTooBig.length > 0) {
+        showCaseAttachmentMessage(
+            panel,
+            "error",
+            "Each file must be " +
+            CASE_ATTACHMENT_MAX_FILE_SIZE_MB +
+            " MB or smaller. These files exceed the limit: " +
+            rejectedTooBig.join(", ")
+        );
+        return;
+    }
+
+    if (validFiles.length === 0) {
+        return;
+    }
+
+    uploadCaseAttachments(caseId, validFiles, panel);
+}
+
+
+function uploadCaseAttachments(caseId, files, panel) {
+    showCaseAttachmentMessage(panel, "info", "Uploading attachment...");
+
+    const uploadPromises = files.map(function (file) {
+        return uploadSingleCaseAttachment(caseId, file);
+    });
+
+    Promise.all(uploadPromises)
+        .then(function () {
+            showCaseAttachmentMessage(panel, "success", "Attachment uploaded successfully.");
+
+            // Mark attachment panel as needing refresh
+            panel.attr("data-attachments-loaded", "false");
+
+            // Reload attachments after upload
+            loadCaseAttachments(caseId, panel);
+
+            // Mark as loaded again
+            panel.attr("data-attachments-loaded", "true");
+        })
+        .catch(function (error) {
+            console.error("Attachment upload failed:", error);
+            showCaseAttachmentMessage(panel, "error", "Unable to upload attachment.");
+        });
+}
+
+function uploadSingleCaseAttachment(caseId, file) {
+    return new Promise(function (resolve, reject) {
+        const reader = new FileReader();
+
+        reader.onload = function (e) {
+            const base64Content = String(e.target.result).split(",")[1];
+            const ext = getCaseAttachmentExt(file.name);
+
+            const mimeType =
+                file.type ||
+                CASE_ATTACHMENT_MIME_TYPES[ext] ||
+                "application/octet-stream";
+
+            const cleanCaseId = cleanGuid(caseId);
+
+            const portalContactName =
+                window.portalCurrentContact && window.portalCurrentContact.name
+                    ? window.portalCurrentContact.name
+                    : "";
+
+            const portalContactId =
+                window.portalCurrentContact && window.portalCurrentContact.id
+                    ? window.portalCurrentContact.id
+                    : "";
+
+            const payload = {
+                "filename": file.name,
+                "documentbody": base64Content,
+                "subject": removeCaseAttachmentExtension(file.name),
+                "mimetype": mimeType,
+                "isdocument": true,
+
+                // Store portal contact info for display in the custom grid
+                "notetext":
+                    "*WEB* " +
+                    "PortalUploadedBy=" + portalContactName +
+                    "; PortalUploadedByContactId=" + portalContactId,
+
+                "objectid_incident@odata.bind": "/incidents(" + cleanCaseId + ")"
+            };
+            console.log("Uploading annotation payload:", payload);
+
+            safeAjax({
+                type: "POST",
+                url: "/_api/annotations",
+                contentType: "application/json",
+                data: JSON.stringify(payload),
+                processData: false,
+                headers: {
+                    "Accept": "application/json"
+                },
+                success: function (data, textStatus, xhr) {
+                    console.log("Attachment uploaded successfully.");
+                    console.log("Created record:", xhr.getResponseHeader("entityid"));
+                    resolve();
+                },
+                error: function (xhr) {
+                    console.error("Attachment upload failed");
+                    console.error("Status:", xhr.status);
+                    console.error("Response:", xhr.responseText);
+                    reject(xhr);
+                }
+            });
+        };
+
+        reader.onerror = function (error) {
+            reject(error);
+        };
+
+        reader.readAsDataURL(file);
+    });
+}
+
+// ==================== HELPERS ====================
+
+function getProductTechLabelByValue(productTechValue) {
+    const cleanValue = cleanFilterValue(productTechValue);
+
+    // 1. Try Product Tech checkbox label
+    const productBox = $(".filter-select-box[data-filter-key='productTech']");
+
+    const matchingCheckbox = productBox.find(".filter-option input[type='checkbox']").filter(function () {
+        return cleanFilterValue($(this).val()) === cleanValue;
+    }).first();
+
+    if (matchingCheckbox.length) {
+        const checkboxLabel = matchingCheckbox.attr("data-label");
+
+        if (checkboxLabel) {
+            return checkboxLabel;
+        }
+
+        const visibleLabel = matchingCheckbox.closest("label").find("span").text().trim();
+
+        if (visibleLabel) {
+            return visibleLabel;
+        }
+    }
+
+    // 2. Try hidden Product Tech source
+    const matchingSourceOption = $("#listFilterOptionSource .list-product-option").filter(function () {
+        return cleanFilterValue($(this).attr("data-value")) === cleanValue;
+    }).first();
+
+    if (matchingSourceOption.length) {
+        const sourceLabel = matchingSourceOption.attr("data-label");
+
+        if (sourceLabel) {
+            return sourceLabel;
+        }
+    }
+
+    // 3. Try row data as final Product Tech specific lookup
+    const matchingRow = $("#dealerCasesTable tbody tr[data-id]").filter(function () {
+        return cleanFilterValue($(this).attr("data-product-tech-value")) === cleanValue;
+    }).first();
+
+    if (matchingRow.length) {
+        const rowLabel = matchingRow.attr("data-product-tech-label");
+
+        if (rowLabel) {
+            return rowLabel;
+        }
+    }
+
+    // 4. Final fallback
+    return cleanValue;
+}
+
+function refreshProductTechChipLabels() {
+    $(".filter-select-box[data-filter-key='productTech'] .selected-filter-chip").each(function () {
+        const chip = $(this);
+        const value = chip.attr("data-value");
+
+        if (!value) return;
+
+        const label = getProductTechLabelByValue(value);
+
+        if (!label || label === value) return;
+
+        // Replace only the text node, keep the remove button untouched
+        const textNode = chip.contents().filter(function () {
+            return this.nodeType === 3;
+        }).first();
+
+        if (textNode.length) {
+            textNode.replaceWith(" " + label + " ");
+        }
+    });
+}
+
+function buildAllowedExtensionSet(rawValue) {
+    return new Set(
+        String(rawValue || "")
+            .replace(/\r/g, ",")
+            .replace(/\n/g, ",")
+            .split(",")
+            .map(function (value) {
+                return value
+                    .trim()
+                    .toLowerCase()
+                    .replace(/^\./, "");
+            })
+            .filter(Boolean)
+    );
+}
+
+function setAttachmentInputAccept(panel) {
+    const acceptValue = Array.from(CASE_ATTACHMENT_ALLOWED_EXT)
+        .map(function (ext) {
+            return "." + ext;
+        })
+        .join(",");
+
+    panel.find(".case-attachment-file-input").attr("accept", acceptValue);
+}
+
+function showCaseAttachmentMessage(panel, type, text) {
+    panel.find(".case-attachment-message")
+        .removeClass("error success info")
+        .addClass(type)
+        .text(text);
+}
+
+function getCaseAttachmentExt(fileName) {
+    if (!fileName || fileName.indexOf(".") === -1) return "";
+
+    return fileName
+        .substring(fileName.lastIndexOf(".") + 1)
+        .toLowerCase()
+        .trim();
+}
+
+function getCaseAttachmentExtensionLabel(fileName) {
+    const ext = getCaseAttachmentExt(fileName);
+
+    if (!ext) return "FILE";
+
+    return ext.substring(0, 4).toUpperCase();
+}
+
+function removeCaseAttachmentExtension(fileName) {
+    if (!fileName) return "";
+
+    const index = fileName.lastIndexOf(".");
+
+    if (index <= 0) return fileName;
+
+    return fileName.substring(0, index);
+}
+
+function formatCaseAttachmentSize(bytes) {
+    bytes = Number(bytes || 0);
+
+    if (bytes < 1024) {
+        return bytes + " bytes";
+    }
+
+    if (bytes < 1024 * 1024) {
+        return (bytes / 1024).toFixed(2) + " KB";
+    }
+
+    return (bytes / (1024 * 1024)).toFixed(2) + " MB";
+}
+
+function formatCaseAttachmentDate(value) {
+    if (!value) return "-";
+
+    const date = new Date(value);
+
+    if (isNaN(date.getTime())) return "-";
+
+    return date.toLocaleDateString();
+}
+
+function base64ToCaseAttachmentBlob(base64, mimeType) {
+    const byteCharacters = atob(base64);
+    const byteArrays = [];
+
+    for (let offset = 0; offset < byteCharacters.length; offset += 512) {
+        const slice = byteCharacters.slice(offset, offset + 512);
+        const byteNumbers = new Array(slice.length);
+
+        for (let i = 0; i < slice.length; i++) {
+            byteNumbers[i] = slice.charCodeAt(i);
+        }
+
+        byteArrays.push(new Uint8Array(byteNumbers));
+    }
+
+    return new Blob(byteArrays, { type: mimeType });
+}
+
+// ===========================  Attachments end  ========================================
+
+        // ---- Popup JS -----
+
+          let currentPopupUrl = "";
+
+    // OPEN POPUP
+    $(document).on("click", ".open-popup-btn", function (e) {
+
+      e.stopPropagation();
+
+      const caseId = $(this).data("id");
+
+      console.log("Popup Case ID:", caseId);
+
+      currentPopupUrl =
+          window.location.origin +
+          "/Case-Details?id=" + caseId;
+
+      $("#casePopupFrame").attr("src", currentPopupUrl);
+
+      $("#casePopupModal")
+          .css("display", "flex")
+          .hide()
+          .fadeIn(200);
+
+    });
+
+
+    // CLOSE (X button)
+    $(document).on("click", "#closePopupBtn", function () {
+
+      $("#casePopupModal").fadeOut(200);
+
+      $("#casePopupFrame").attr("src", "");
+
+    });
+
+
+    // CLOSE (bottom button)
+    $(document).on("click", ".close-btn", function () {
+
+      $("#casePopupModal").fadeOut(200);
+
+      $("#casePopupFrame").attr("src", "");
+
+    });
+
+
+    // OPEN IN NEW TAB
+    $(document).on("click", "#openNewTabBtn", function () {
+
+      if (currentPopupUrl) {
+         window.open(currentPopupUrl + "&mode=newtab", "_blank");
+      }
+
+    });
+
+
+    // CLICK OUTSIDE TO CLOSE
+    $(document).on("click", "#casePopupModal", function (e) {
+
+      if (e.target === this) {
+
+          $("#casePopupModal").fadeOut(200);
+
+          $("#casePopupFrame").attr("src", "");
+
+      }
+
+    });
+
+
+//new
+// ==================== PAGINATION ====================
+// ==================== STATUS + PRODUCT TECH + DATE FILTER + PAGINATION ====================
+
+let caseRowsPerPage = 10;
+let caseCurrentPage = 1;
+
+let selectedCaseFilters = {
+    status: [],
+    dealerCode: [],
+    productTech: [],
+    supportType: [],
+    secondarySupportType: [],
+    caseOrigin: [],
+    persona: [],
+    dateOpenedFrom: "",
+    dateOpenedTo: ""
+};
+
+$(document).ready(function () {
+    buildDealerCodeFilterOptions();
+    buildStatusFilterOptions();
+    buildProductTechFilterOptions();
+
+    // New All Cases filters
+    buildSupportTypeFilterOptions();
+    buildSecondarySupportTypeFilterOptions();
+    buildCaseOriginFilterOptions();
+    buildPersonaFilterOptions();
+
+    // Restore filters from URL/sessionStorage/localStorage/Contact after options are built
+    restoreTileFilters(function () {
+        // Product Tech only: replace GUID chip with label if needed
+        refreshProductTechChipLabels();
+
+        // Apply restored filters
+        applyCaseFiltersAndPaginate();
+
+        // Product Tech only: run again after pagination/filtering in case row data is needed
+        refreshProductTechChipLabels();
+
+        updateFilterButtonState();
+    });
+});
+
+function getAllCaseRows() {
+    return $("#dealerCasesTable tbody tr[data-id]");
+}
+
+
+// ==================== BUILD FILTER OPTIONS ====================
+
+function buildStatusFilterOptions() {
+    const uniqueStatuses = new Map();
+
+    const excludedStatusLabels = [
+        "invalid",
+        "not in portal"
+    ];
+
+    $(
+        "#listFilterOptionSource " +
+        ".list-status-option"
+    ).each(function () {
+        const value = cleanFilterValue(
+            $(this).attr("data-value")
+        );
+
+        const label = String(
+            $(this).attr("data-label") || value
+        ).trim();
+
+        const normalizedLabel =
+            label.toLowerCase();
+
+        if (
+            value &&
+            label &&
+            !excludedStatusLabels.includes(
+                normalizedLabel
+            )
+        ) {
+            uniqueStatuses.set(
+                value,
+                label
+            );
+        }
+    });
+
+    buildMultiSelectOptions(
+        "status",
+        uniqueStatuses,
+        "No status options available"
+    );
+}
+
+function buildDealerCodeFilterOptions() {
+    const uniqueDealerCodes = new Map();
+
+    $("#listFilterOptionSource .list-dealercode-option").each(function () {
+        const value = cleanFilterValue($(this).attr("data-value"));
+        const label = ($(this).attr("data-label") || value).trim();
+
+        if (value && label) {
+            uniqueDealerCodes.set(value, label);
+        }
+    });
+
+    buildMultiSelectOptions("dealerCode", uniqueDealerCodes, "No dealer code options available");
+}
+
+function buildProductTechFilterOptions() {
+    const uniqueProducts = new Map();
+
+    $("#listFilterOptionSource .list-product-option").each(function () {
+        const value = cleanFilterValue($(this).attr("data-value"));
+        const label = ($(this).attr("data-label") || value).trim();
+
+        if (value && label) {
+            uniqueProducts.set(value, label);
+        }
+    });
+
+    buildMultiSelectOptions("productTech", uniqueProducts, "No product tech options available");
+}
+
+/* New All Cases filter: Support Type */
+function buildSupportTypeFilterOptions() {
+    const options = new Map();
+
+    $("#dealerCasesTable tbody tr[data-id]").each(function () {
+        const row = $(this);
+
+        const value = cleanFilterValue(
+            row.attr("data-support-type-value") || ""
+        );
+
+        const label = String(
+            row.attr("data-support-type-label") || ""
+        ).trim();
+
+        if (value && label) {
+            options.set(value, label);
+        }
+    });
+
+    buildMultiSelectOptions(
+        "supportType",
+        options,
+        "No support type options available"
+    );
+}
+
+/* New All Cases filter: Secondary Support Type */
+function buildSecondarySupportTypeFilterOptions() {
+    const options = new Map();
+
+    $("#dealerCasesTable tbody tr[data-id]").each(function () {
+        const row = $(this);
+
+        const value = cleanFilterValue(
+            row.attr("data-secondary-support-type-value") || ""
+        );
+
+        const label = String(
+            row.attr("data-secondary-support-type-label") || ""
+        ).trim();
+
+        if (value && label) {
+            options.set(value, label);
+        }
+    });
+
+    buildMultiSelectOptions(
+        "secondarySupportType",
+        options,
+        "No secondary support type options available"
+    );
+}
+
+/* New All Cases filter: Case Origin */
+function buildCaseOriginFilterOptions() {
+    const options = new Map();
+
+    $("#dealerCasesTable tbody tr[data-id]").each(function () {
+        const row = $(this);
+
+        const value = cleanFilterValue(
+            row.attr("data-case-origin-value") || ""
+        );
+
+        const label = String(
+            row.attr("data-case-origin-label") || ""
+        ).trim();
+
+        if (value && label) {
+            options.set(value, label);
+        }
+    });
+
+    buildMultiSelectOptions(
+        "caseOrigin",
+        options,
+        "No case origin options available"
+    );
+}
+
+/* New All Cases filter: Requested From Contact Persona */
+function buildPersonaFilterOptions() {
+    const options = new Map();
+
+    const allowedPersonaLabels = [
+        "customer",
+        "dealer",
+        "internal"
+    ];
+
+    $("#dealerCasesTable tbody tr[data-id]").each(function () {
+        const row = $(this);
+
+        const value = cleanFilterValue(
+            row.attr("data-persona-value") || ""
+        );
+
+        const label = String(
+            row.attr("data-persona-label") || ""
+        ).trim();
+
+        const normalizedLabel =
+            label.toLowerCase();
+
+        if (
+            value &&
+            label &&
+            allowedPersonaLabels.includes(
+                normalizedLabel
+            )
+        ) {
+            options.set(
+                value,
+                label
+            );
+        }
+    });
+
+    buildMultiSelectOptions(
+        "persona",
+        options,
+        "No persona options available"
+    );
+}
+
+
+function buildMultiSelectOptions(filterKey, optionsMap, emptyMessage) {
+    const sortedOptions = Array.from(optionsMap.entries()).sort(function (a, b) {
+        return String(a[1]).localeCompare(String(b[1]));
+    });
+
+    let optionsHtml = "";
+
+    sortedOptions.forEach(function ([value, label]) {
+        optionsHtml += `
+            <div class="filter-option" data-value="${escapeAttribute(value)}">
+                <label>
+                    <input type="checkbox"
+                           value="${escapeAttribute(value)}"
+                           data-label="${escapeAttribute(label)}">
+                    <span>${escapeHtml(label)}</span>
+                </label>
+            </div>
+        `;
+    });
+
+    if (sortedOptions.length === 0) {
+        optionsHtml = `<div class="filter-no-options">${escapeHtml(emptyMessage)}</div>`;
+    }
+
+    $(".filter-select-box[data-filter-key='" + filterKey + "']")
+        .find(".filter-options")
+        .html(optionsHtml);
+}
+
+// ==================== OPEN / CLOSE FILTER DRAWER ====================
+
+$(document).on("click", "#openCaseFilter", function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    openCaseFilterPanel();
+});
+
+$(document).on("click", "#closeCaseFilter, #caseFilterOverlay", function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    closeCaseFilterPanel();
+});
+
+function openCaseFilterPanel() {
+    $("#caseFilterOverlay").addClass("active");
+    $("#caseFilterPanel").addClass("active").attr("aria-hidden", "false");
+    $("body").addClass("filter-panel-open");
+
+    // Product Tech only: ensure restored GUID chip is displayed as label
+    refreshProductTechChipLabels();
+}
+
+function closeCaseFilterPanel() {
+    $("#caseFilterOverlay").removeClass("active");
+    $("#caseFilterPanel").removeClass("active").attr("aria-hidden", "true");
+    $("body").removeClass("filter-panel-open");
+
+    $(".filter-select-box").removeClass("open");
+    $(".filter-search-input").val("");
+    $(".filter-option").show();
+    $(".filter-no-match").remove();
+}
+
+
+// ==================== OPEN / CLOSE MULTISELECT DROPDOWNS ====================
+
+$(document).on("click", ".filter-search-row", function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const box = $(this).closest(".filter-select-box");
+
+    // Click on chevron should toggle open/close
+    if ($(e.target).closest(".filter-chevron").length) {
+        if (box.hasClass("open")) {
+            box.removeClass("open");
+        } else {
+            $(".filter-select-box").not(box).removeClass("open");
+            box.addClass("open");
+            box.find(".filter-search-input").focus();
+            filterDropdownOptions(box);
+        }
+
+        return;
+    }
+
+    // Click in search row opens dropdown
+    $(".filter-select-box").not(box).removeClass("open");
+    box.addClass("open");
+
+    box.find(".filter-search-input").focus();
+    filterDropdownOptions(box);
+});
+
+$(document).on("click", ".filter-search-input", function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const box = $(this).closest(".filter-select-box");
+
+    $(".filter-select-box").not(box).removeClass("open");
+    box.addClass("open");
+
+    filterDropdownOptions(box);
+});
+
+$(document).on("click", function (e) {
+    if (!$(e.target).closest(".filter-select-box").length) {
+        $(".filter-select-box").removeClass("open");
+    }
+});
+
+
+// ==================== SEARCH INSIDE FILTER OPTIONS ====================
+
+$(document).on("input keyup", ".filter-search-input", function () {
+    const box = $(this).closest(".filter-select-box");
+
+    box.addClass("open");
+
+    filterDropdownOptions(box);
+});
+
+function filterDropdownOptions(box) {
+    const searchText = normalizeText(box.find(".filter-search-input").val());
+    let visibleCount = 0;
+
+    box.find(".filter-no-match").remove();
+
+    box.find(".filter-option").each(function () {
+        const option = $(this);
+        const optionText = normalizeText(option.text());
+
+        if (!searchText || optionText.includes(searchText)) {
+            option.show();
+            visibleCount++;
+        } else {
+            option.hide();
+        }
+    });
+
+    if (visibleCount === 0) {
+        box.find(".filter-options").append(`
+            <div class="filter-no-match">
+                
+            </div>
+        `);
+    }
+}
+
+
+// ==================== CHECKBOX SELECTION ====================
+
+$(document).on("change", ".filter-option input[type='checkbox']", function () {
+    const box = $(this).closest(".filter-select-box");
+    const filterKey = box.data("filter-key");
+
+    selectedCaseFilters[filterKey] = [];
+
+    box.find(".filter-option input[type='checkbox']:checked").each(function () {
+        selectedCaseFilters[filterKey].push(cleanFilterValue($(this).val()));
+    });
+
+    renderFilterChips(box, filterKey);
+});
+
+
+function renderFilterChips(box, filterKey) {
+    const container = box.find(".selected-chip-container");
+    const selectedValues = selectedCaseFilters[filterKey] || [];
+
+    let html = "";
+
+    selectedValues.forEach(function (value) {
+        const cleanValue = cleanFilterValue(value);
+
+        const checkbox = box.find(".filter-option input[type='checkbox']").filter(function () {
+            return cleanFilterValue($(this).val()) === cleanValue;
+        });
+
+        const label = checkbox.attr("data-label") || cleanValue;
+
+        html += `
+            <span class="selected-filter-chip"
+                  data-filter-key="${escapeAttribute(filterKey)}"
+                  data-value="${escapeAttribute(cleanValue)}">
+                ${escapeHtml(label)}
+                <button type="button" class="remove-filter-chip">×</button>
+            </span>
+        `;
+    });
+
+    container.html(html);
+}
+
+// ==================== REMOVE CHIP ====================
+
+$(document).on("click", ".remove-filter-chip", function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const chip = $(this).closest(".selected-filter-chip");
+    const filterKey = chip.attr("data-filter-key");
+    const value = cleanFilterValue(chip.attr("data-value"));
+    selectedCaseFilters[filterKey] = selectedCaseFilters[filterKey].filter(function (item) {
+        return cleanFilterValue(item) !== value;
+    });
+
+    const allCasesFilters =
+    getCurrentAllCasesFilters();
+
+saveSharedFilters(allCasesFilters);
+
+const query =
+    buildFilterQuery(allCasesFilters);
+
+    window.history.replaceState(
+        null,
+        "",
+        query ? window.location.pathname + "?" + query : window.location.pathname
+    );
+
+    applyCaseFiltersAndPaginate();
+
+    const box = $(".filter-select-box[data-filter-key='" + filterKey + "']");
+
+    box.find(".filter-option input[type='checkbox']").each(function () {
+ if (cleanFilterValue($(this).val()) === value)  {
+            $(this).prop("checked", false);
+        }
+    });
+
+    renderFilterChips(box, filterKey);
+});
+
+function getCurrentAllCasesFilters() {
+    return {
+        status:
+            selectedCaseFilters.status || [],
+
+        dealerCode:
+            selectedCaseFilters.dealerCode || [],
+
+        productTech:
+            selectedCaseFilters.productTech || [],
+
+        supportType:
+            selectedCaseFilters.supportType || [],
+
+        secondarySupportType:
+            selectedCaseFilters.secondarySupportType || [],
+
+        caseOrigin:
+            selectedCaseFilters.caseOrigin || [],
+
+        persona:
+            selectedCaseFilters.persona || [],
+
+        createdFrom:
+            selectedCaseFilters.dateOpenedFrom || "",
+
+        createdTo:
+            selectedCaseFilters.dateOpenedTo || ""
+    };
+}
+
+// ==================== APPLY FILTER ====================
+
+$(document).on("click", "#applyCaseFilters", function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    selectedCaseFilters.dateOpenedFrom = buildDateTimeValue(
+        $("#dateOpenedFromDate").val(),
+        $("#dateOpenedFromTime").val(),
+        "start"
+    );
+
+    selectedCaseFilters.dateOpenedTo = buildDateTimeValue(
+        $("#dateOpenedToDate").val(),
+        $("#dateOpenedToTime").val(),
+        "end"
+    );
+
+    const allCasesFilters =
+    getCurrentAllCasesFilters();
+
+saveSharedFilters(allCasesFilters);
+
+const query =
+    buildFilterQuery(allCasesFilters);
+
+    window.history.replaceState(
+        null,
+        "",
+        query ? window.location.pathname + "?" + query : window.location.pathname
+    );
+
+    applyCaseFiltersAndPaginate();
+    closeCaseFilterPanel();
+});
+
+function buildDateTimeValue(dateValue, timeValue, mode) {
+    if (!dateValue) {
+        return "";
+    }
+
+    let finalTime = timeValue;
+
+    if (!finalTime) {
+        finalTime = mode === "start" ? "00:00" : "23:59";
+    }
+
+    return dateValue + "T" + finalTime + ":00";
+}
+
+
+// ==================== CLEAR FILTER ====================
+
+$(document).on("click", "#clearCaseFilters", function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    selectedCaseFilters.status = [];
+selectedCaseFilters.dealerCode = [];
+selectedCaseFilters.productTech = [];
+
+selectedCaseFilters.supportType = [];
+selectedCaseFilters.secondarySupportType = [];
+selectedCaseFilters.caseOrigin = [];
+selectedCaseFilters.persona = [];
+
+selectedCaseFilters.dateOpenedFrom = "";
+selectedCaseFilters.dateOpenedTo = "";
+
+    $(".filter-option input[type='checkbox']").prop("checked", false);
+    $(".selected-chip-container").empty();
+    $(".filter-search-input").val("");
+
+    $("#dateOpenedFromDate").val("");
+    $("#dateOpenedFromTime").val("");
+    $("#dateOpenedToDate").val("");
+    $("#dateOpenedToTime").val("");
+
+    clearSharedFilters(function () {
+    console.log(
+        "All persisted All Cases filters were cleared."
+    );
+});
+
+    window.history.replaceState(null, "", window.location.pathname);
+
+    applyCaseFiltersAndPaginate();
+});
+
+
+// ==================== FILTERING LOGIC ====================
+
+function getFilteredCaseRows() {
+    var rows = getAllCaseRows().filter(function () {
+        const row = $(this);
+
+        const rowStatus = cleanFilterValue(row.attr("data-status-value") || "");
+        const rowDealerCode = cleanFilterValue(row.attr("data-dealer-code") || "");
+        const rowProductTech = cleanFilterValue(row.attr("data-product-tech-value") || "");
+        const rowSupportType = cleanFilterValue( row.attr("data-support-type-value") || "");
+        const rowSecondarySupportType = cleanFilterValue(row.attr("data-secondary-support-type-value") || "");
+        const rowCaseOrigin = cleanFilterValue(row.attr("data-case-origin-value") || "");
+        const rowPersona = cleanFilterValue(row.attr("data-persona-value") || "");
+        const rowCreatedOn = row.attr("data-created-on") || "";
+
+        if (selectedCaseFilters.status.length > 0) {
+            const matched = selectedCaseFilters.status.some(function (value) {
+                return rowStatus === cleanFilterValue(value);
+            });
+
+            if (!matched) return false;
+        }
+
+        if (selectedCaseFilters.dealerCode.length > 0) {
+            const matched = selectedCaseFilters.dealerCode.some(function (value) {
+                return rowDealerCode === cleanFilterValue(value);
+            });
+
+            if (!matched) return false;
+        }
+
+        if (selectedCaseFilters.productTech.length > 0) {
+            const matched = selectedCaseFilters.productTech.some(function (value) {
+                return rowProductTech === cleanFilterValue(value);
+            });
+
+            if (!matched) return false;
+        }
+
+        // Support Type filter
+if (
+    selectedCaseFilters.supportType &&
+    selectedCaseFilters.supportType.length > 0
+) {
+    const supportTypeMatched =
+        selectedCaseFilters.supportType.some(
+            function (selectedSupportType) {
+                return rowSupportType ===
+                    cleanFilterValue(selectedSupportType);
+            }
+        );
+
+    if (!supportTypeMatched) {
+        return false;
+    }
+}
+
+// Secondary Support Type filter
+if (
+    selectedCaseFilters.secondarySupportType &&
+    selectedCaseFilters.secondarySupportType.length > 0
+) {
+    const secondarySupportTypeMatched =
+        selectedCaseFilters.secondarySupportType.some(
+            function (selectedSecondarySupportType) {
+                return rowSecondarySupportType ===
+                    cleanFilterValue(
+                        selectedSecondarySupportType
+                    );
+            }
+        );
+
+    if (!secondarySupportTypeMatched) {
+        return false;
+    }
+}
+
+// Case Origin filter
+if (
+    selectedCaseFilters.caseOrigin &&
+    selectedCaseFilters.caseOrigin.length > 0
+) {
+    const caseOriginMatched =
+        selectedCaseFilters.caseOrigin.some(
+            function (selectedCaseOrigin) {
+                return rowCaseOrigin ===
+                    cleanFilterValue(selectedCaseOrigin);
+            }
+        );
+
+    if (!caseOriginMatched) {
+        return false;
+    }
+}
+
+// Requested From Contact Persona filter
+if (
+    selectedCaseFilters.persona &&
+    selectedCaseFilters.persona.length > 0
+) {
+    const personaMatched =
+        selectedCaseFilters.persona.some(
+            function (selectedPersona) {
+                return rowPersona ===
+                    cleanFilterValue(selectedPersona);
+            }
+        );
+
+    if (!personaMatched) {
+        return false;
+    }
+}
+
+        if (selectedCaseFilters.dateOpenedFrom) {
+            if (!rowCreatedOn || rowCreatedOn < selectedCaseFilters.dateOpenedFrom) {
+                return false;
+            }
+        }
+
+        if (selectedCaseFilters.dateOpenedTo) {
+            if (!rowCreatedOn || rowCreatedOn > selectedCaseFilters.dateOpenedTo) {
+                return false;
+            }
+        }
+
+            return true;
+    });
+
+    rows = getSearchMatchedCaseRows(rows);
+
+    return rows;
+}
+
+// ==================== APPLY FILTER + PAGINATION ====================
+
+function getCaseRowsBeforeSearch() {
+    var currentSearchText =
+        dealerCaseSearchText;
+
+    dealerCaseSearchText = "";
+
+    var filterMatchedRows =
+        getFilteredCaseRows();
+
+    dealerCaseSearchText =
+        currentSearchText;
+
+    return filterMatchedRows;
+}
+
+function applyCaseFiltersAndPaginate() {
+    $(".case-details").remove();
+
+    caseCurrentPage = 1;
+    showCasePage(caseCurrentPage);
+    updateFilterButtonState();
+
+    if (
+        typeof dealerCaseSearchText !== "undefined" &&
+        normalizeDealerCaseSearchValue(
+            dealerCaseSearchText
+        ).length > 0
+    ) {
+        var matchedRows =
+            getFilteredCaseRows();
+
+        var filterMatchedRows =
+            getCaseRowsBeforeSearch();
+
+        updateDealerCaseSearchMessage(
+            matchedRows.length,
+            filterMatchedRows.length
+        );
+    } else {
+        $("#dealerCaseSearchResult").text("");
+    }
+}
+
+function showCasePage(page) {
+
+    var allRows =
+        getAllCaseRows();
+
+    var filteredRows =
+        getFilteredCaseRows();
+
+    $(".case-details").remove();
+    $(".no-filter-results-row").remove();
+
+    allRows.hide();
+
+    updateExportButtonState();
+
+    if (filteredRows.length === 0) {
+
+        showNoFilteredRecordsRow(true);
+
+        $("#dealerPagination")
+            .empty()
+            .hide();
+
+        return;
+    }
+
+    showNoFilteredRecordsRow(false);
+
+    var totalPages =
+        Math.ceil(
+            filteredRows.length /
+            caseRowsPerPage
+        ) || 1;
+
+    if (page < 1) {
+        page = 1;
+    }
+
+    if (page > totalPages) {
+        page = totalPages;
+    }
+
+    caseCurrentPage = page;
+
+    var start =
+        (caseCurrentPage - 1) *
+        caseRowsPerPage;
+
+    var end =
+        start +
+        caseRowsPerPage;
+
+    filteredRows
+        .slice(start, end)
+        .show();
+
+    renderCasePagination(
+        totalPages,
+        filteredRows.length
+    );
+
+    updateExportButtonState();
+}
+function renderCasePagination(totalPages, totalRecords) {
+   let html = "";
+    const startRecord = ((caseCurrentPage - 1) * caseRowsPerPage) + 1;
+    const endRecord = Math.min(caseCurrentPage * caseRowsPerPage, totalRecords);
+
+    if (totalRecords === 0) {
+        $("#dealerPagination").empty();
+        return;
+    }
+
+    html += `
+        <div class="pagination-footer">
+            <div class="record-info">
+                Viewing ${startRecord}-${endRecord} of ${totalRecords}
+            </div>
+
+            <div class="pagination-buttons">
+
+                <button class="page-btn prev-btn"
+                    ${caseCurrentPage === 1 ? "disabled" : ""}
+                    data-page="${caseCurrentPage - 1}">
+                    &#10094;
+                </button>
+    `;
+
+   // Always show first page
+    html += `
+        <button class="page-btn page-number ${caseCurrentPage === 1 ? "active" : ""}"
+            data-page="1">
+            1
+        </button>
+    `;
+
+    let startPage = Math.max(2, caseCurrentPage - 1);
+    let endPage = Math.min(totalPages - 1, caseCurrentPage + 1);
+
+    // Beginning pages
+    if (caseCurrentPage <= 3) {
+        startPage = 2;
+        endPage = Math.min(4, totalPages - 1);
+    }
+
+    // Ending pages
+    if (caseCurrentPage >= totalPages - 2) {
+        startPage = Math.max(2, totalPages - 3);
+        endPage = totalPages - 1;
+    }
+
+    // Left ellipsis
+    if (startPage > 2) {
+        html += `
+            <button class="page-btn page-ellipsis"
+                data-page="${startPage - 2}">
+                ...
+            </button>
+        `;
+    }
+
+    // Middle pages
+    for (let i = startPage; i <= endPage; i++) {
+        html += `
+            <button class="page-btn page-number ${caseCurrentPage === i ? 'active' : ''}"
+                data-page="${i}">
+                ${i}
+            </button>
+        `;
+    }
+
+    // Right ellipsis
+    if (endPage < totalPages - 1) {
+        html += `
+            <button class="page-btn page-ellipsis"
+                data-page="${endPage + 2}">
+                ...
+            </button>
+        `;
+    }
+
+    // Last Page
+    if (totalPages > 1) {
+        html += `
+            <button class="page-btn page-number ${caseCurrentPage === totalPages ? 'active' : ''}"
+                data-page="${totalPages}">
+                ${totalPages}
+            </button>
+        `;
+    }
+
+    html += `
+                <button class="page-btn next-btn"
+                    ${caseCurrentPage === totalPages ? "disabled" : ""}
+                    data-page="${caseCurrentPage + 1}">
+                    &#10095;
+                </button>
+            </div>
+        </div>
+    `;
+
+    $("#dealerPagination").html(html);
+
+   
+}
+
+$(document).on(
+    "click",
+    ".page-number, .page-ellipsis",
+    function () {
+        showCasePage(
+            parseInt($(this).data("page"))
+        );
+    }
+);
+
+$(document).on(
+    "click",
+    ".prev-btn",
+    function () {
+        if (caseCurrentPage > 1) {
+            showCasePage(
+                caseCurrentPage - 1
+            );
+        }
+    }
+);
+
+$(document).on(
+    "click",
+    ".next-btn",
+    function () {
+        var totalPages =
+            Math.ceil(
+                getFilteredCaseRows().length /
+                caseRowsPerPage
+            ) || 1;
+
+        if (caseCurrentPage < totalPages) {
+            showCasePage(
+                caseCurrentPage + 1
+            );
+        }
+    }
+);
+
+
+// ==================== FILTER BUTTON BADGE ====================
+
+function updateFilterButtonState() {
+    let activeFilterCount = 0;
+
+    activeFilterCount += selectedCaseFilters.dealerCode.length;
+    activeFilterCount += selectedCaseFilters.status.length;
+    activeFilterCount += selectedCaseFilters.productTech.length;
+    activeFilterCount +=
+    selectedCaseFilters.supportType.length;
+
+activeFilterCount +=
+    selectedCaseFilters.secondarySupportType.length;
+
+activeFilterCount +=
+    selectedCaseFilters.caseOrigin.length;
+
+activeFilterCount +=
+    selectedCaseFilters.persona.length;
+
+    if (selectedCaseFilters.dateOpenedFrom) {
+        activeFilterCount++;
+    }
+
+    if (selectedCaseFilters.dateOpenedTo) {
+        activeFilterCount++;
+    }
+
+    if (activeFilterCount > 0) {
+        $("#openCaseFilter")
+            .addClass("has-filters")
+            .attr("data-count", activeFilterCount);
+    } else {
+        $("#openCaseFilter")
+            .removeClass("has-filters")
+            .removeAttr("data-count");
+    }
+}
+
+// ==================== HELPERS ====================
+
+function normalizeText(value) {
+    if (!value) return "";
+
+    return String(value)
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLowerCase();
+}
+
+function escapeHtml(value) {
+    if (!value) return "";
+
+    return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+function escapeAttribute(value) {
+    return escapeHtml(value);
+}
+// ==================== TABLE SORTING ====================
+
+let currentSortKey = "";
+let currentSortDirection = "asc";
+
+$(document).on("click", "#dealerCasesTable th.sortable-header", function () {
+    const header = $(this);
+    const sortKey = header.data("sort-key");
+    const sortType = header.data("sort-type") || "text";
+
+    if (!sortKey) return;
+
+    $(".case-details").remove();
+
+    if (currentSortKey === sortKey) {
+        currentSortDirection = currentSortDirection === "asc" ? "desc" : "asc";
+    } else {
+        currentSortKey = sortKey;
+        currentSortDirection = "asc";
+    }
+
+    sortDealerCaseRows(sortKey, sortType, currentSortDirection);
+    updateSortArrows();
+
+    if (typeof applyCaseFiltersAndPaginate === "function") {
+        applyCaseFiltersAndPaginate();
+    } else if (typeof showCasePage === "function") {
+        showCasePage(1);
+    }
+});
+
+function sortDealerCaseRows(sortKey, sortType, direction) {
+    const tbody = $("#dealerCasesTable tbody");
+    const rows = tbody.find("tr[data-id]").get();
+
+    rows.sort(function (rowA, rowB) {
+        const valueA = getSortableValue($(rowA), sortKey, sortType);
+        const valueB = getSortableValue($(rowB), sortKey, sortType);
+
+        let comparison = 0;
+
+        if (sortType === "datetime") {
+            comparison = valueA - valueB;
+        } else {
+            comparison = String(valueA).localeCompare(String(valueB), undefined, {
+                numeric: true,
+                sensitivity: "base"
+            });
+        }
+
+        return direction === "asc" ? comparison : comparison * -1;
+    });
+
+    rows.forEach(function (row) {
+        tbody.append(row);
+    });
+}
+
+function getSortableValue(row, sortKey, sortType) {
+
+    var value = "";
+
+    if (sortKey === "caseNumber") {
+        value =
+            row.attr("data-sort-case-number") || "";
+    }
+
+    if (sortKey === "status") {
+        value =
+            row.attr("data-sort-status") || "";
+    }
+
+    if (sortKey === "dealerCode") {
+        value =
+            row.attr("data-sort-dealer-code") || "";
+    }
+
+    if (sortKey === "dateOpened") {
+        value =
+            row.attr("data-sort-date-opened") || "";
+    }
+
+    if (sortKey === "product") {
+        value =
+            row.attr("data-sort-product") || "";
+    }
+
+    if (sortKey === "subject") {
+        value =
+            row.attr("data-sort-subject") || "";
+    }
+
+    if (sortKey === "description") {
+        value =
+            row.attr("data-sort-description") || "";
+    }
+
+    if (sortKey === "channel") {
+        value =
+            row.attr("data-sort-channel") || "";
+    }
+
+    if (sortType === "datetime") {
+
+        if (!value) {
+            return 0;
+        }
+
+        var dateValue =
+            new Date(value).getTime();
+
+        if (isNaN(dateValue)) {
+            return 0;
+        }
+
+        return dateValue;
+    }
+
+    if (sortType === "numeric") {
+
+        var numericValue =
+            parseFloat(value);
+
+        if (isNaN(numericValue)) {
+            return 0;
+        }
+
+        return numericValue;
+    }
+
+    return value;
+}
+function updateSortArrows() {
+    $("#dealerCasesTable th.sortable-header")
+        .removeClass("sort-asc sort-desc")
+        .find(".sort-arrow")
+        .html("");
+
+    const activeHeader = $("#dealerCasesTable th.sortable-header[data-sort-key='" + currentSortKey + "']");
+
+    if (currentSortDirection === "asc") {
+        activeHeader.addClass("sort-asc");
+        activeHeader.find(".sort-arrow").html("↑");
+    } else {
+        activeHeader.addClass("sort-desc");
+        activeHeader.find(".sort-arrow").html("↓");
+    }
+}
+
+// ======================= Persistent Filter Carryover =======================================
+// Uses the same saved filter payload as Home page.
+// Storage priority:
+// 1. URL query string
+// 2. sessionStorage
+// 3. localStorage
+// 4. Contact field
+
+const HC_CURRENT_USER_ID = "{{ user.id | escape }}";
+const HC_CONTACT_FILTER_FIELD = "cat_helpcentersavedfilters";
+
+const HC_SESSION_FILTER_KEY = "HC_SHARED_FILTERS_SESSION_" + HC_CURRENT_USER_ID;
+const HC_LOCAL_FILTER_KEY = "HC_SHARED_FILTERS_LOCAL_" + HC_CURRENT_USER_ID;
+
+function saveFiltersToBrowser(filters) {
+    if (!HC_CURRENT_USER_ID) return;
+
+    const filterJson = JSON.stringify(filters || {});
+    sessionStorage.setItem(HC_SESSION_FILTER_KEY, filterJson);
+    localStorage.setItem(HC_LOCAL_FILTER_KEY, filterJson);
+}
+
+function saveSharedFilters(filters, callback) {
+    if (!HC_CURRENT_USER_ID) {
+        if (typeof callback === "function") callback();
+        return;
+    }
+
+    saveFiltersToBrowser(filters);
+
+    const payload = {};
+    payload[HC_CONTACT_FILTER_FIELD] = JSON.stringify(filters || {});
+
+    safeAjax({
+        type: "PATCH",
+        url: "/_api/contacts(" + HC_CURRENT_USER_ID + ")",
+        contentType: "application/json",
+        data: JSON.stringify(payload),
+        success: function () {
+            console.log("Help Center filters saved to Contact from All Cases.");
+            if (typeof callback === "function") callback();
+        },
+        error: function (xhr) {
+            console.log("Failed to save Help Center filters to Contact from All Cases.", xhr);
+            if (typeof callback === "function") callback();
+        }
+    });
+}
+
+function getSharedFilters() {
+    let rawValue = "";
+
+    try {
+        rawValue = sessionStorage.getItem(HC_SESSION_FILTER_KEY);
+        if (rawValue) {
+            return JSON.parse(rawValue) || {};
+        }
+    } catch (e) {
+        console.log("Invalid session filter JSON.", e);
+    }
+
+    try {
+        rawValue = localStorage.getItem(HC_LOCAL_FILTER_KEY);
+        if (rawValue) {
+            return JSON.parse(rawValue) || {};
+        }
+    } catch (e) {
+        console.log("Invalid local filter JSON.", e);
+    }
+
+    return {};
+}
+
+function loadFiltersFromContact(callback) {
+    if (!HC_CURRENT_USER_ID) {
+        callback({});
+        return;
+    }
+
+    safeAjax({
+        type: "GET",
+        url: "/_api/contacts(" + HC_CURRENT_USER_ID + ")?$select=" + HC_CONTACT_FILTER_FIELD,
+        contentType: "application/json",
+        headers: {
+            "Accept": "application/json"
+        },
+        success: function (response) {
+            const filterJson = response ? response[HC_CONTACT_FILTER_FIELD] : "";
+
+            if (!filterJson) {
+                callback({});
+                return;
+            }
+
+            try {
+                const filters = JSON.parse(filterJson) || {};
+                saveFiltersToBrowser(filters);
+                callback(filters);
+            } catch (e) {
+                console.log("Invalid saved Help Center filter JSON on Contact.", e);
+                callback({});
+            }
+        },
+        error: function (xhr) {
+            console.log("Failed to load Help Center filters from Contact.", xhr);
+            callback({});
+        }
+    });
+}
+
+function clearSharedFilters(callback) {
+    sessionStorage.removeItem(HC_SESSION_FILTER_KEY);
+    localStorage.removeItem(HC_LOCAL_FILTER_KEY);
+
+    if (!HC_CURRENT_USER_ID) {
+        if (typeof callback === "function") callback();
+        return;
+    }
+
+    const payload = {};
+    payload[HC_CONTACT_FILTER_FIELD] = null;
+
+    safeAjax({
+        type: "PATCH",
+        url: "/_api/contacts(" + HC_CURRENT_USER_ID + ")",
+        contentType: "application/json",
+        data: JSON.stringify(payload),
+        success: function () {
+            console.log("Help Center filters cleared from Contact from All Cases.");
+            if (typeof callback === "function") callback();
+        },
+        error: function (xhr) {
+            console.log("Failed to clear Help Center filters from Contact from All Cases.", xhr);
+            if (typeof callback === "function") callback();
+        }
+    });
+}
+
+function cleanFilterValue(value) {
+    if (!value) return "";
+
+    return String(value)
+        .replace("{", "")
+        .replace("}", "")
+        .trim();
+}
+
+function buildFilterQuery(filters) {
+    const params = new URLSearchParams();
+
+    if (filters.status && filters.status.length > 0) {
+        params.set("status", filters.status.join(","));
+    }
+
+    if (filters.dealerCode && filters.dealerCode.length > 0) {
+        params.set("dealerCode", filters.dealerCode.join(","));
+    }
+
+    if (filters.productTech && filters.productTech.length > 0) {
+        params.set("productTech", filters.productTech.join(","));
+    }
+
+    if (filters.createdFrom) {
+        params.set("createdFrom", filters.createdFrom);
+    }
+
+    if (filters.createdTo) {
+        params.set("createdTo", filters.createdTo);
+    }
+
+    return params.toString();
+}
+
+function getFiltersFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+
+    return {
+        status: params.get("status")
+            ? params.get("status").split(",").map(cleanFilterValue).filter(Boolean)
+            : [],
+
+        dealerCode: params.get("dealerCode")
+            ? params.get("dealerCode").split(",").map(cleanFilterValue).filter(Boolean)
+            : [],
+
+        productTech: params.get("productTech")
+            ? params.get("productTech").split(",").map(cleanFilterValue).filter(Boolean)
+            : [],
+
+        createdFrom: params.get("createdFrom") || "",
+        createdTo: params.get("createdTo") || ""
+    };
+}
+
+function hasAnyFilter(filters) {
+    filters = filters || {};
+
+    return Boolean(
+        (
+            filters.status &&
+            filters.status.length > 0
+        ) ||
+        (
+            filters.dealerCode &&
+            filters.dealerCode.length > 0
+        ) ||
+        (
+            filters.productTech &&
+            filters.productTech.length > 0
+        ) ||
+        (
+            filters.supportType &&
+            filters.supportType.length > 0
+        ) ||
+        (
+            filters.secondarySupportType &&
+            filters.secondarySupportType.length > 0
+        ) ||
+        (
+            filters.caseOrigin &&
+            filters.caseOrigin.length > 0
+        ) ||
+        (
+            filters.persona &&
+            filters.persona.length > 0
+        ) ||
+        filters.createdFrom ||
+        filters.createdTo
+    );
+}
+
+function applyTileFilterState(filters) {
+    filters = filters || {};
+
+    selectedCaseFilters.status =
+        filters.status || [];
+
+    selectedCaseFilters.dealerCode =
+        filters.dealerCode || [];
+
+    selectedCaseFilters.productTech =
+        filters.productTech || [];
+
+    selectedCaseFilters.supportType =
+        filters.supportType || [];
+
+    selectedCaseFilters.secondarySupportType =
+        filters.secondarySupportType || [];
+
+    selectedCaseFilters.caseOrigin =
+        filters.caseOrigin || [];
+
+    selectedCaseFilters.persona =
+        filters.persona || [];
+
+    selectedCaseFilters.dateOpenedFrom =
+        filters.createdFrom || "";
+
+    selectedCaseFilters.dateOpenedTo =
+        filters.createdTo || "";
+
+    restoreTileMultiSelect("status");
+    restoreTileMultiSelect("dealerCode");
+    restoreTileMultiSelect("productTech");
+    restoreTileMultiSelect("supportType");
+    restoreTileMultiSelect(
+        "secondarySupportType"
+    );
+    restoreTileMultiSelect("caseOrigin");
+    restoreTileMultiSelect("persona");
+
+    restoreDateTimeInput(
+        filters.createdFrom || "",
+        "#dateOpenedFromDate",
+        "#dateOpenedFromTime"
+    );
+
+    restoreDateTimeInput(
+        filters.createdTo || "",
+        "#dateOpenedToDate",
+        "#dateOpenedToTime"
+    );
+}
+
+function updateCurrentUrlFromFilters(filters) {
+    const query = buildFilterQuery(filters);
+
+    window.history.replaceState(
+        null,
+        "",
+        query ? window.location.pathname + "?" + query : window.location.pathname
+    );
+}
+
+function restoreTileFilters(callback) {
+    const urlFilters =
+        getFiltersFromUrl();
+
+    const browserFilters =
+        getSharedFilters();
+
+    // Priority 1: URL shared filters.
+    // Preserve All Cases-specific filters from browser storage.
+    if (hasAnyFilter(urlFilters)) {
+        const mergedFilters = {
+            status:
+                urlFilters.status || [],
+
+            dealerCode:
+                urlFilters.dealerCode || [],
+
+            productTech:
+                urlFilters.productTech || [],
+
+            supportType:
+                browserFilters.supportType || [],
+
+            secondarySupportType:
+                browserFilters.secondarySupportType || [],
+
+            caseOrigin:
+                browserFilters.caseOrigin || [],
+
+            persona:
+                browserFilters.persona || [],
+
+            createdFrom:
+                urlFilters.createdFrom || "",
+
+            createdTo:
+                urlFilters.createdTo || ""
+        };
+
+        saveSharedFilters(mergedFilters);
+        applyTileFilterState(mergedFilters);
+
+        if (typeof callback === "function") {
+            callback();
+        }
+
+        return;
+    }
+
+    // Priority 2 and 3:
+    // sessionStorage, then localStorage.
+    if (hasAnyFilter(browserFilters)) {
+        applyTileFilterState(browserFilters);
+        updateCurrentUrlFromFilters(
+            browserFilters
+        );
+
+        if (typeof callback === "function") {
+            callback();
+        }
+
+        return;
+    }
+
+    // Priority 4: Contact field.
+    loadFiltersFromContact(
+        function (contactFilters) {
+            if (hasAnyFilter(contactFilters)) {
+                applyTileFilterState(
+                    contactFilters
+                );
+
+                updateCurrentUrlFromFilters(
+                    contactFilters
+                );
+            }
+
+            if (
+                typeof callback ===
+                "function"
+            ) {
+                callback();
+            }
+        }
+    );
+}
+
+function restoreTileMultiSelect(filterKey) {
+    const selectedValues = selectedCaseFilters[filterKey] || [];
+    const box = $(".filter-select-box[data-filter-key='" + filterKey + "']");
+
+    box.find("input[type='checkbox']").each(function () {
+        const value = cleanFilterValue($(this).val());
+        $(this).prop("checked", selectedValues.includes(value));
+    });
+
+    renderFilterChips(box, filterKey);
+}
+
+function restoreDateTimeInput(value, dateSelector, timeSelector) {
+    if (!value) return;
+
+    const parsedDate = new Date(value);
+
+    if (isNaN(parsedDate.getTime())) return;
+
+    const yyyy = parsedDate.getFullYear();
+    const mm = String(parsedDate.getMonth() + 1).padStart(2, "0");
+    const dd = String(parsedDate.getDate()).padStart(2, "0");
+    const hh = String(parsedDate.getHours()).padStart(2, "0");
+    const mi = String(parsedDate.getMinutes()).padStart(2, "0");
+
+    $(dateSelector).val(`${yyyy}-${mm}-${dd}`);
+    $(timeSelector).val(`${hh}:${mi}`);
+}
+
+function buildUtcDateTimeValue(dateValue, timeValue, mode) {
+    if (!dateValue) return "";
+
+    let finalTime = timeValue;
+
+    if (!finalTime) {
+        finalTime = mode === "start" ? "00:00" : "23:59";
+    }
+
+    const localDate = new Date(dateValue + "T" + finalTime + ":00");
+
+    if (isNaN(localDate.getTime())) return "";
+
+    return localDate.toISOString();
+}
+
+function buildDateTimeValue(dateValue, timeValue, mode) {
+    if (!dateValue) return "";
+
+    let finalTime = timeValue;
+
+    if (!finalTime) {
+        finalTime = mode === "start" ? "00:00" : "23:59";
+    }
+
+    return dateValue + "T" + finalTime + ":00";
+}
+
+function showNoFilteredRecordsRow(show) {
+    const table = $("#dealerCasesTable");
+    const tbody = table.find("tbody");
+
+    // Remove any old empty-state rows
+    tbody.find(".no-filter-results-row").remove();
+
+    if (!show) {
+        $("#dealerPagination").show();
+        return;
+    }
+
+    const columnCount = table.find("thead th").length || 1;
+
+    const snippetHtml = $("#emptyListMessageSnippet").html() || "No results found";
+
+    const noResultHtml = `
+        <tr class="no-filter-results-row">
+            <td colspan="${columnCount}" style="
+                height: 140px;
+                padding: 35px 24px;
+                text-align: center;
+                vertical-align: middle;
+                font-size: 16px;
+                font-weight: 500;
+                color: #666;
+                background: #fff;
+                border-bottom: 1px solid #eee;
+            ">
+                <div class="grid-empty-message">
+                    ${snippetHtml}
+                </div>
+            </td>
+        </tr>
+    `;
+
+    tbody.append(noResultHtml);
+
+    // No pagination when there are no records
+    $("#dealerPagination").empty().hide();
+}
+
+$(document).ready(function () {
+    currentSortKey = "dateOpened";
+    currentSortDirection = "desc";
+
+    sortDealerCaseRows("dateOpened", "datetime", "desc");
+    updateSortArrows();
+});
+
+var dealerCaseSearchTimer = null;
+var dealerCaseSearchText = "";
+
+function normalizeDealerCaseSearchValue(value) {
+    return String(value || "")
+        .toLowerCase()
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function rowMatchesDealerCaseSearch(row) {
+    var normalizedSearch =
+        normalizeDealerCaseSearchValue(
+            dealerCaseSearchText
+        );
+
+    if (!normalizedSearch) {
+        return true;
+    }
+
+    var searchableText =
+        row.attr("data-search-text");
+
+    if (!searchableText) {
+        searchableText =
+            row.find("td")
+                .map(function () {
+                    return $(this).text();
+                })
+                .get()
+                .join(" ");
+    }
+
+    searchableText =
+        normalizeDealerCaseSearchValue(
+            searchableText
+        );
+
+    var searchWords =
+        normalizedSearch
+            .split(" ")
+            .filter(function (word) {
+                return word.length > 0;
+            });
+
+    return searchWords.every(function (word) {
+        return searchableText.indexOf(word) !== -1;
+    });
+}
+
+function getSearchMatchedCaseRows(rows) {
+    if (!rows) {
+        rows =
+            $("#dealerCasesTable tbody tr[data-id]");
+    }
+
+    return rows.filter(function () {
+        return rowMatchesDealerCaseSearch(
+            $(this)
+        );
+    });
+}
+
+function updateDealerCaseSearchMessage(
+    matchingCount,
+    totalCount
+) {
+    var resultContainer =
+        $("#dealerCaseSearchResult");
+
+    var searchValue =
+        normalizeDealerCaseSearchValue(
+            dealerCaseSearchText
+        );
+
+    if (!searchValue) {
+        resultContainer.text("");
+        return;
+    }
+
+    if (matchingCount === 0) {
+        resultContainer.text(
+            "No matching cases found."
+        );
+        return;
+    }
+
+    resultContainer.text(
+        matchingCount +
+        " of " +
+        totalCount +
+        (totalCount === 1
+            ? " case"
+            : " cases") +
+        " matched"
+    );
+}
+
+function applyDealerCaseSearch() {
+    dealerCaseSearchText =
+        $("#dealerCaseSearch").val() || "";
+
+    var allCaseRows =
+        $("#dealerCasesTable tbody tr[data-id]");
+
+    allCaseRows.each(function () {
+        var row = $(this);
+
+        row.attr(
+            "data-search-match",
+            rowMatchesDealerCaseSearch(row)
+                ? "true"
+                : "false"
+        );
+    });
+
+    $(".case-details").remove();
+    expandedRow = null;
+
+    $("#clearDealerCaseSearch").toggle(
+        normalizeDealerCaseSearchValue(
+            dealerCaseSearchText
+        ).length > 0
+    );
+
+    applyCaseFiltersAndPaginate();
+}
+
+
+$(document).on(
+    "input",
+    "#dealerCaseSearch",
+    function () {
+        clearTimeout(
+            dealerCaseSearchTimer
+        );
+
+        dealerCaseSearchTimer =
+            setTimeout(function () {
+                applyDealerCaseSearch();
+            }, 250);
+    }
+);
+
+$(document).on(
+    "click",
+    "#clearDealerCaseSearch",
+    function () {
+        $("#dealerCaseSearch")
+            .val("")
+            .focus();
+
+        applyDealerCaseSearch();
+    }
+);
+
+$(document).on(
+    "keydown",
+    "#dealerCaseSearch",
+    function (event) {
+        if (event.key === "Escape") {
+            $("#dealerCaseSearch")
+                .val("")
+                .focus();
+
+            applyDealerCaseSearch();
+        }
+    }
+);
+
+$(document).ready(function () {
+    $("#clearDealerCaseSearch").hide();
+});
+
+</script>
+
+
+
+<style>
+    #exportDealerCases:disabled {
+    background-color: #e0e0e0 !important;
+    color: #888888 !important;
+    border-color: #cccccc !important;
+    cursor: not-allowed !important;
+    opacity: 0.65;
+}
+
+#exportDealerCases:disabled img {
+    opacity: 0.5;
+    filter: grayscale(100%);
+}
+
+.mobile-assets-list{
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+    margin-top:16px;
+}
+
+.mobile-asset-card{
+    background:#fff;
+    border:1px solid #e5e5e5;
+    border-radius:10px;
+    padding:14px;
+    box-shadow:0 1px 3px rgba(0,0,0,.08);
+}
+
+.mobile-asset-row{
+    display:flex;
+    justify-content:space-between;
+    gap:12px;
+    padding:8px 0;
+    border-bottom:1px solid #f0f0f0;
+}
+
+.mobile-asset-row:last-child{
+    border-bottom:none;
+}
+
+.mobile-asset-row .label{
+    font-size:12px;
+    font-weight:600;
+    color:#666;
+    min-width:120px;
+}
+
+.mobile-asset-row .value{
+    text-align:right;
+    color:#1a1a1a;
+    word-break:break-word;
+}
+    .case-asset-panel{
+    overflow-x:auto;
+}
+
+.case-assets-table{
+    width:100%;
+    min-width:1800px;
+    border-collapse:collapse;
+}
+
+.case-assets-table th{
+    background:#f5f5f5;
+    padding:12px;
+    border-bottom:1px solid #ddd;
+    white-space:nowrap;
+}
+
+.case-assets-table td{
+    padding:12px;
+    border-bottom:1px solid #eee;
+    white-space:nowrap;
+}
+
+
+.pagination-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    margin-top: 10px;
+}
+
+.record-info {
+    color: #555;
+    font-size: 14px;
+}
+
+.pagination-buttons {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.page-btn {
+    border: none;
+    background: transparent;
+    color: #0067b8;
+    cursor: pointer;
+    min-width: 30px;
+    height: 30px;
+    border-radius: 4px;
+}
+
+.page-btn:hover:not(:disabled) {
+    background: #f3f2f1;
+}
+
+.page-btn.active {
+    background: #ffc72c;
+    color: #000;
+    font-weight: 600;
+}
+
+.page-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.page-ellipsis {
+    font-weight: bold;
+}
+
+
+#dealerCasesContainer table tbody tr{
+cursor:default;
+}
+
+.table-wrapper{
+    width:100%;
+    overflow-x:auto;
+    overflow-y:hidden;
+    white-space:nowrap;
+}
+
+#dealerCasesTable {
+  max-width: 100%;
+  border-collapse: collapse;
+}
+
+#dealerCasesTable th{
+  background: #ffffff;;
+  font-weight: 600;
+  padding: 12px 24px;
+  border-bottom: 2px solid #ddd;
+  vertical-align:top;
+  white-space:nowrap;
+ 
+}
+
+#dealerCasesTable td{
+  padding: 12px 24px;
+  border-bottom: 1px solid #eee;
+  white-space:nowrap;
+  color: #3f3f3f;
+}
+
+#dealerCasesTable th:hover{
+  text-decoration: underline;
+  cursor:pointer;
+}
+
+.case-tabs {
+   display: flex;
+   gap: 10px;
+   margin-bottom: 15px;
+   border-bottom: 1px solid #ddd;
+}
+.case-tab {
+   padding: 8px 16px;
+   cursor: pointer;
+   background: #f5f5f5;
+   border-radius: 4px 4px 0 0;
+}
+.case-tab.active {
+   color: hwb(0 5% 95%);
+   background: #ffffff;
+   border-bottom:3px solid #ffcd00;
+}
+.case-panel {
+   display: none;
+}
+.case-panel.active {
+   display: block;
+}
+.case-grid {
+   display: grid;
+   grid-template-columns: repeat(2, 1fr);
+   gap: 15px;
+}
+
+.mpc-header{
+  font-weight: 600 !important;
+}
+
+.entitylist .view-pagination {
+   display: flex !important;
+   justify-content: right;
+   flex-wrap: wrap;
+ }
+
+  a.page-link{
+  text-decoration: none !important;
+ }
+
+ /* Remove underline from all pagination links */
+
+.jquery-bootstrap-pagination .pagination .page-link {
+  text-decoration: none !important;
+  color: var(--Content-Link-Default, #0067B8);
+text-align: center;
+ 
+/* label/default */
+font-family: var(--Label-Default-Family, "Noto Sans");
+font-size: var(--Label-Default-Size, 14px);
+font-style: normal;
+font-weight: 600;
+line-height: var(--Label-Default-Line-Hieght, 20px);
+  
+}
+
+/* Active page */
+
+.jquery-bootstrap-pagination .pagination .page-item.active .page-link {
+  background-color: #ffcd11 !important;
+  border-color: #ffcd11 !important;
+  color: #000 !important;
+  text-decoration: none !important;
+}
+
+/* Hover state */
+
+.jquery-bootstrap-pagination .pagination .page-link:hover {
+  color: #000 !important;
+  text-decoration: none !important;
+}
+
+/* pin css */
+.pin-header,
+.pin-cell {
+    width: 48px;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.pin-cell {
+    cursor: pointer;
+    user-select: none;
+}
+
+.pin-cell svg {
+    width: 22px;
+    height: 22px;
+    display: inline-block;
+}
+
+.pinned-row {
+    background-color: #fff8e1 !important;
+}
+
+.pin-cell.loading {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+#dealerCasesTable .pin-header,
+#dealerCasesTable .pin-cell {
+    width: 42px;
+    min-width: 42px;
+    max-width: 42px;
+    text-align: center;
+    vertical-align: middle;
+    padding-left: 8px;
+    padding-right: 8px;
+}
+
+#dealerCasesTable .pin-cell {
+    cursor: pointer;
+    user-select: none;
+}
+
+#dealerCasesTable .pin-svg {
+    width: 22px;
+    height: 22px;
+    display: inline-block;
+}
+
+#dealerCasesTable .pinned-row {
+    background-color: #fff8e1 !important;
+}
+
+#dealerCasesTable .pin-cell.loading {
+    opacity: 0.5;
+    pointer-events: none;
+}
+/* pin css end*/
+ 
+
+@media (max-width: 768px) {
+     /* Assets */
+.mobile-assets-table,
+.mobile-emails-table,
+.mobile-attachments-table {
+    width: 100%;
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+}
+
+.mobile-case-assets-panel,
+.mobile-case-emails-panel,
+.mobile-case-attachments-panel {
+    width: 100%;
+}
+
+.case-assets-top,
+.case-emails-top,
+.case-attachments-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.case-assets-summary,
+.case-emails-summary,
+.case-attachments-summary {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.case-assets-table th,
+.case-assets-table td,
+.case-emails-table th,
+.case-emails-table td,
+.case-attachments-table th,
+.case-attachments-table td {
+    padding: 8px;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.case-assets-table,
+.case-emails-table,
+.case-attachments-table {
+    border-collapse: collapse;
+    width: 100%;
+}
+
+.case-assets-table thead,
+.case-emails-table thead,
+.case-attachments-table thead {
+    background: #f5f5f5;
+}
+
+.case-assets-table th,
+.case-emails-table th,
+.case-attachments-table th {
+    font-weight: 600;
+}
+
+.case-assets-table tr,
+.case-emails-table tr,
+.case-attachments-table tr {
+    border-bottom: 1px solid #e5e5e5;
+}
+  /* Header (Case Number row) */
+  .mobile-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid #E5E5E5;
+    margin-bottom: 16px;
+  }
+
+  /* Header (Case Number row) */
+  .mobile-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid #E5E5E5;
+    margin-bottom: 16px;
+  }
+
+  .mobile-header h3 {
+    font-size: 25px;
+    font-weight: 600;
+    margin: 0;
+  }
+
+  .back-btn {
+    font-size: 18px;
+    cursor: pointer;
+  }
+
+  .accordion {
+   width: 100% !important;
+  }
+  /* Accordion item */
+  .accordion-item {
+    padding: 0px;
+    border-bottom: 1px solid #c8c8c8;
+    width: 100% !important;
+  }
+
+  /* Accordion header */
+  .accordion-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 0;
+    font-size: 14px;
+    width: 100% !important;
+    font-weight: 600;
+    cursor: pointer;
+    border-bottom: 1px solid #dadada;
+  }
+
+  
+  .accordion-header::after {
+    display: none;
+  }
+
+  .accordion, .accordion-item{
+    width: 100% !important;
+  }
+
+  /* Chevron icon */
+  .accordion-header::before {
+ content: "";
+ width: 16px;
+ height: 16px;
+ display: inline-block;
+ background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%231A1A1A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+ background-size: contain;
+ background-repeat: no-repeat;
+ transform: rotate(-90deg);
+ transition: transform 0.3s ease;
+}
+
+  .accordion-item.active .accordion-header::before {
+    transform: rotate(0deg); 
+  }
+
+  /* Accordion body */
+  .accordion-body {
+    display: none;
+    padding-bottom: 12px;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .accordion-item.active .accordion-body {
+    display: block;
+  }
+  
+  .field {
+    margin-bottom: 16px;
+  }
+
+  .label {
+    font-size: 12px;
+    color: #6B6B6B;
+    margin-bottom: 4px;
+  }
+
+  .value {
+    font-size: 14px;
+    font-weight: 500;
+    color: #6B6B6B;
+  }
+
+  .mobile-case-container{
+   width: 102vw !important;
+   max-width: 108vw !important;
+   margin-left: -16px !important;
+   margin-right: -16px !important;
+   padding: 16px;
+   position: relative;
+   top: -66px;
+   z-index: 10;
+   background: #fff;
+   
+  }
+
+ body.mobile-detail-view .mpc-header{
+   display: none !important;
+ }
+ .entity-grid table {
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+    width: 100% !important;
+    background: #fff;
+    table-layout: fixed !important;
+    height: auto !important;
+    *{
+  max-width: 100% !important;
+ }
+}
+
+
+.entity-grid thead th a{
+font-size: 8px !important;
+font-weight: 500 !important;
+display: inline-block !important;
+white-space: normal !important;
+line-height: 1.2 !important;
+word-break: normal !important;
+}
+
+.entity-grid table th, .entity-grid table td{
+  height: auto !important;
+  padding: 5px 6px !important;
+  line-height: 1.2 !important;
+  min-height: unset !important;
+  vertical-align: top !important;
+  padding: 8px 6px !important;
+  font-size: 8px !important;
+  width: auto !important;
+  max-width: none !important;
+  word-break: normal !important;
+  white-space: normal !important;
+}
+
+.entitylist .view-pagination {
+   display: flex !important;
+   justify-content: center;
+   flex-wrap: wrap;
+   margin-bottom: 16px !important;
+ }
+ /* Style page numbers */
+ .entitylist .pagination {
+   display: flex !important;
+   flex-wrap: wrap;
+   gap: 6px;
+ }
+ .entitylist .pagination li {
+   list-style: none;
+ }
+ .entitylist .pagination li a,
+ .entitylist .pagination li span {
+   padding: 6px 10px;
+   font-size: 12px;
+   border-radius: 6px;
+ }
+ /* Prevent overflow */
+ .entitylist {
+   overflow-x: auto;
+   margin-bottom: 80px !important;
+ }
+
+
+}
+ 
+/* ================= PAGINATION ================= */
+ 
+.custom-pagination{
+    display:flex;
+    justify-content:flex-end;
+    align-items:center;
+    gap:6px;
+    flex-wrap:wrap;
+    margin-top:20px;
+    margin-bottom:70px;
+}
+ 
+.page-btn{
+    min-width:32px;
+    height:32px;
+    border:none;
+    border-radius:6px;
+    background:#f5f5f5;
+    cursor:pointer;
+    font-weight:600;
+    font-size:13px;
+    transition:all .3s ease;
+}
+ 
+.page-btn:hover{
+    background:#ffcd11;
+}
+ 
+.page-btn.active{
+    background:#ffcd11;
+    color:#000;
+}
+ 
+.page-btn:disabled{
+    opacity:.4;
+    cursor:not-allowed;
+}
+ 
+@media(max-width:768px){
+ 
+   #dealerCasesContainer{
+    padding-bottom:150px !important;
+   }
+   .custom-pagination{
+    gap:5px;
+    margin-top:20px !important;
+    margin-bottom: 30px !important;
+    position:relative;
+    z-index:999;
+   }
+   .page-btn{
+    min-width: 28px;
+    height:28px;
+    font-size:11px;
+   }
+ 
+}
+ 
+</style>
+
+
+
+
+
+    <style>
+          .entitylist table tbody tr{
+      cursor:default;
+      }
+      .case-emails-table td.subject,
+.mobile-email-row .value{
+    white-space:normal;
+    word-break:break-word;
+}
+      .case-tabs {
+         display: flex;
+         gap: 10px;
+         margin-bottom: 15px;
+         border-bottom: 1px solid #ddd;
+      }
+      .case-tab {
+         padding: 8px 16px;
+         cursor: pointer;
+         background: #f5f5f5;
+         border-radius: 4px 4px 0 0;
+      }
+      .case-tab.active {
+         color: hwb(0 5% 95%);
+         background: #ffffff;
+         border-bottom:3px solid #ffcd00;
+      }
+      .case-panel {
+         display: none;
+      }
+      .case-panel.active {
+         display: block;
+      }
+      .case-grid {
+         display: grid;
+         grid-template-columns: repeat(2, 1fr);
+         gap: 15px;
+      }
+
+      .entitylist .view-pagination {
+         display: flex !important;
+         justify-content: right;
+         flex-wrap: wrap;
+       }
+
+        a.page-link{
+        text-decoration: none !important;
+       }
+
+       /* Remove underline from all pagination links */
+
+      .jquery-bootstrap-pagination .pagination .page-link {
+        text-decoration: none !important;
+        color: var(--Content-Link-Default, #0067B8);
+      text-align: center;
+
+      /* label/default */
+      font-family: var(--Label-Default-Family, "Noto Sans");
+      font-size: var(--Label-Default-Size, 14px);
+      font-style: normal;
+      font-weight: 600;
+      line-height: var(--Label-Default-Line-Hieght, 20px);
+
+      }
+
+      /* Active page */
+
+      .jquery-bootstrap-pagination .pagination .page-item.active .page-link {
+        background-color: #ffcd11 !important;
+        border-color: #ffcd11 !important;
+        color: #000 !important;
+        text-decoration: none !important;
+      }
+
+      /* Hover state */
+
+      .jquery-bootstrap-pagination .pagination .page-link:hover {
+        color: #000 !important;
+        text-decoration: none !important;
+      }
+
+       body.mobile-detail-view .cases-title{
+         display: none !important;
+       }
+    </style>
+<div id="exportSuccessToast"
+     class="export-success-toast"
+     role="status"
+     aria-live="polite"
+     aria-hidden="true">
+
+    <img src="/CAT_Success.png"
+         alt="Success"
+         class="success-icon">
+
+   
+   <span class="export-success-text">
+    Successfully exported
+</span>
+
+    <button type="button"
+            id="closeExportSuccessToast"
+            class="export-success-close"
+            aria-label="Close notification">
+        &times;
+    </button>
+
+</div>
+
+    <div id="mobile-case-view" style="display:none;"></div>
+        <!-- Iframe for the popup -->
+    <div id="casePopupModal" class="case-popup-overlay">
+      <div class="case-popup-content">
+        <div class="case-popup-header">
+          <h3>Case Details</h3>
+          <div class="popup-actions">
+            <button id="closePopupBtn">
+              ✕
+            </button>
+          </div>
+        </div>
+        <iframe id="casePopupFrame"></iframe>    
+        <div class="button-container">
+            <button id="openNewTabBtn">
+              Open In New Tab
+            </button>          
+            <button class="close-btn">Close</button>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</div>
