@@ -1,0 +1,306 @@
+{% if totalPages > 1 %}
+
+{% assign startRecord = currentPage | minus: 1 | times: pageSizeNumber | plus: 1 %}
+{% assign endRecord = currentPage | times: pageSizeNumber %}
+
+{% if endRecord > totalArticlesNumber %}
+  {% assign endRecord = totalArticlesNumber %}
+{% endif %}
+
+{% assign qs = '' %}
+{% if request.params.categoryids %}
+  {% assign qs = '&categoryids=' | append: request.params.categoryids | url_encode %}
+{% endif %}
+
+<div class="custom-pagination">
+<div class="pagination-footer">
+
+    <div class="record-info">
+        Viewing {{ startRecord }}-{{ endRecord }} of {{ totalArticlesNumber }}
+    </div>
+
+   <div class="pagination-buttons">
+
+    {% if currentPage > 1 %}
+        <a class="page-btn prev-btn" href="?page={{ currentPage | minus: 1 }}{{ qs }}">&#10094;</a>
+    {% else %}
+        <button class="page-btn prev-btn" disabled>&#10094;</button>
+    {% endif %}
+
+    {% if currentPage == 1 %}
+        <span class="page-btn page-number active">1</span>
+    {% else %}
+        <a class="page-btn page-number" href="?page=1{{ qs }}">1</a>
+    {% endif %}
+
+    {% assign startPage = currentPage | minus: 1 %}
+    {% assign endPage = currentPage | plus: 1 %}
+    {% assign totalPagesMinusOne = totalPages | minus: 1 %}
+
+    {% if currentPage <= 3 %}
+        {% assign startPage = 2 %}
+        {% assign endPage = 4 %}
+        {% if endPage > totalPagesMinusOne %}
+            {% assign endPage = totalPagesMinusOne %}
+        {% endif %}
+    {% endif %}
+
+    {% assign nearEnd = totalPages | minus: 2 %}
+    {% if currentPage >= nearEnd %}
+        {% assign startPage = totalPages | minus: 3 %}
+        {% if startPage < 2 %}
+            {% assign startPage = 2 %}
+        {% endif %}
+        {% assign endPage = totalPagesMinusOne %}
+    {% endif %}
+
+    {% if startPage > 2 %}
+        <span class="page-btn page-ellipsis">...</span>
+    {% endif %}
+
+    {% for i in (startPage..endPage) %}
+
+        {% if i > 1 and i < totalPages %}
+
+            {% if i == currentPage %}
+                <span class="page-btn page-number active">
+                    {{ i }}
+                </span>
+            {% else %}
+                <a class="page-btn page-number" href="?page={{ i }}{{ qs }}">
+                    {{ i }}
+                </a>
+            {% endif %}
+
+        {% endif %}
+
+    {% endfor %}
+
+    {% if endPage < totalPagesMinusOne %}
+        <span class="page-btn page-ellipsis">...</span>
+    {% endif %}
+
+    {% if totalPages > 1 %}
+
+        {% if currentPage == totalPages %}
+            <span class="page-btn page-number active">
+                {{ totalPages }}
+            </span>
+        {% else %}
+            <a class="page-btn page-number" href="?page={{ totalPages }}{{ qs }}">
+                {{ totalPages }}
+            </a>
+        {% endif %}
+
+    {% endif %}
+
+    {% if currentPage < totalPages %}
+        <a class="page-btn next-btn" href="?page={{ currentPage | plus: 1 }}{{ qs }}">&#10095;</a>
+    {% else %}
+        <button class="page-btn next-btn" disabled>&#10095;</button>
+    {% endif %}
+
+</div>
+</div>
+</div>
+
+{% endif %}
+
+
+
+
+{% if totalPages > 1 %}
+
+{% assign startRecord = currentPage | minus: 1 | times: pageSizeNumber | plus: 1 %}
+{% assign endRecord = currentPage | times: pageSizeNumber %}
+
+{% if endRecord > totalArticlesNumber %}
+  {% assign endRecord = totalArticlesNumber %}
+{% endif %}
+
+{% assign qs = '' %}
+{% if request.params.categoryids %}
+  {% assign qs = '&categoryids=' | append: request.params.categoryids | url_encode %}
+{% endif %}
+
+<div class="custom-pagination">
+<div class="pagination-footer">
+
+    <div class="record-info">
+        Viewing {{ startRecord }}-{{ endRecord }} of {{ totalArticlesNumber }}
+    </div>
+
+   <div class="pagination-buttons">
+
+    {% if currentPage > 1 %}
+        <a class="page-btn prev-btn" href="?page={{ currentPage | minus: 1 }}{{ qs }}">&#10094;</a>
+    {% else %}
+        <button class="page-btn prev-btn" disabled>&#10094;</button>
+    {% endif %}
+
+    {% if currentPage == 1 %}
+        <span class="page-btn page-number active">1</span>
+    {% else %}
+        <a class="page-btn page-number" href="?page=1{{ qs }}">1</a>
+    {% endif %}
+
+    {% assign startPage = currentPage | minus: 1 %}
+    {% assign endPage = currentPage | plus: 1 %}
+    {% assign totalPagesMinusOne = totalPages | minus: 1 %}
+
+    {% if currentPage <= 3 %}
+        {% assign startPage = 2 %}
+        {% assign endPage = 4 %}
+        {% if endPage > totalPagesMinusOne %}
+            {% assign endPage = totalPagesMinusOne %}
+        {% endif %}
+    {% endif %}
+
+    {% assign nearEnd = totalPages | minus: 2 %}
+    {% if currentPage >= nearEnd %}
+        {% assign startPage = totalPages | minus: 3 %}
+        {% if startPage < 2 %}
+            {% assign startPage = 2 %}
+        {% endif %}
+        {% assign endPage = totalPagesMinusOne %}
+    {% endif %}
+
+    {% if startPage > 2 %}
+        <span class="page-btn page-ellipsis">...</span>
+    {% endif %}
+
+    {% for i in (startPage..endPage) %}
+
+        {% if i > 1 and i < totalPages %}
+
+            {% if i == currentPage %}
+                <span class="page-btn page-number active">
+                    {{ i }}
+                </span>
+            {% else %}
+                <a class="page-btn page-number" href="?page={{ i }}{{ qs }}">
+                    {{ i }}
+                </a>
+            {% endif %}
+
+        {% endif %}
+
+    {% endfor %}
+
+    {% if endPage < totalPagesMinusOne %}
+        <span class="page-btn page-ellipsis">...</span>
+    {% endif %}
+
+    {% if totalPages > 1 %}
+
+        {% if currentPage == totalPages %}
+            <span class="page-btn page-number active">
+                {{ totalPages }}
+            </span>
+        {% else %}
+            <a class="page-btn page-number" href="?page={{ totalPages }}{{ qs }}">
+                {{ totalPages }}
+            </a>
+        {% endif %}
+
+    {% endif %}
+
+    {% if currentPage < totalPages %}
+        <a class="page-btn next-btn" href="?page={{ currentPage | plus: 1 }}{{ qs }}">&#10095;</a>
+    {% else %}
+        <button class="page-btn next-btn" disabled>&#10095;</button>
+    {% endif %}
+
+</div>
+</div>
+</div>
+
+{% endif %}
+
+
+
+
+.custom-pagination {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 20px;
+}
+
+.pagination-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    margin-top: 10px;
+}
+
+.record-info {
+    color: #555;
+    font-size: 14px;
+}
+
+.pagination-buttons {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.page-btn {
+    border: none;
+    background: transparent;
+    color: #0067b8;
+    cursor: pointer;
+    min-width: 30px;
+    height: 30px;
+    border-radius: 4px;
+    text-decoration: none !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 13px;
+}
+
+.page-btn:hover:not(:disabled) {
+    background: #f3f2f1;
+}
+
+.page-btn.active {
+    background: #ffc72c;
+    color: #000;
+    font-weight: 600;
+}
+
+.page-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.page-ellipsis {
+    font-weight: bold;
+    cursor: default;
+}
+
+@media (max-width:768px){
+
+    .pagination-footer{
+        flex-direction:column;
+        gap:12px;
+    }
+
+    .record-info{
+        order:2;
+    }
+
+    .pagination-buttons{
+        order:1;
+        flex-wrap:wrap;
+        justify-content:center;
+    }
+}
+
+
+
