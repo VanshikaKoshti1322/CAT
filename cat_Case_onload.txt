@@ -1,0 +1,797 @@
+// Ensure global namespace
+var CAT = CAT || {};
+CAT.Case = CAT.Case || {};
+
+//-----------------------------------------------------------
+var workstreamOptions = [];
+//-----------------------------------------------------------
+
+/**
+* Fires when Requested For (customerid) changes
+* Auto-populates Dealer Code ONLY when:
+* 1. Requested For = Account
+* 2. Account Type = Dealer (100000001)
+*/
+
+CAT.Case.onRequestedForChange = async function (executionContext) {
+    try {
+        var formContext = executionContext.getFormContext();
+        var dealerCodeAttr = formContext.getAttribute("cat_dealercode");
+        var dealerCodeCtrl = formContext.getControl("cat_dealercode");
+        //  Safety: Dealer Code must exist on form
+        if (!dealerCodeAttr) {
+            console.log("cat_dealercode is not present on this form");
+            return;
+        }
+        var customerAttr = formContext.getAttribute("customerid");
+        if (!customerAttr) return;
+        var customerLookup = customerAttr.getValue();
+        // Helper to clear Dealer Code safely
+        function clearDealerCode() {
+            if (dealerCodeCtrl) dealerCodeCtrl.setDisabled(false);
+            dealerCodeAttr.setValue(null);
+            if (dealerCodeCtrl) dealerCodeCtrl.setDisabled(true);
+        }
+        //  Condition 1: Requested For is empty
+        if (!customerLookup || customerLookup.length === 0) {
+            clearDealerCode();
+            return;
+        }
+        var customerValue = customerLookup[0];
+        //  Condition 2: Requested For must be Account
+        if (customerValue.entityType !== "account") {
+            clearDealerCode();
+            return;
+        }
+        // Clean GUID
+        var accountId = customerValue.id.replace("{", "").replace("}", "");
+        //  Retrieve Account Type + Dealer Code
+        var account = await Xrm.WebApi.retrieveRecord(
+            "account",
+            accountId,
+            "?$select=cat_accounttype,cat_authoringdealercode"
+        );
+        //  Condition 3: Account Type must be Dealer (100000001)
+        if (account.cat_accounttype !== 100000001) {
+            clearDealerCode();
+            return;
+        }
+        // Populate Dealer Code
+        if (account.cat_authoringdealercode) {
+            if (dealerCodeCtrl) dealerCodeCtrl.setDisabled(false);
+            dealerCodeAttr.setValue(account.cat_authoringdealercode);
+            if (dealerCodeCtrl) dealerCodeCtrl.setDisabled(true);
+        } else {
+            clearDealerCode();
+        }
+    } catch (error) {
+        console.error("Dealer Code auto-population failed:", error);
+        Xrm.Utility.alertDialog(error.message);
+    }
+}
+CAT.Case.populateCHI = async function (executionContext) {
+    var formContext = executionContext.getFormContext();
+    var requestedFor = formContext.getAttribute("customerid").getValue();
+    var productTechnology = formContext.getAttribute("productid").getValue();
+    try {
+        if (!productTechnology) {
+            formContext.getAttribute("cat_casehandlinginstruction").setValue(null);
+            return;
+        }
+        var customerId = requestedFor
+            ? requestedFor[0].id.replace(/[{}]/g, "")
+            : null;
+        var productId = productTechnology[0].id.replace(/[{}]/g, "");
+        var chiRecord = null;
+        // Priority 1: Product Technology + Dealer
+        if (customerId) {
+            var dealerQuery =
+                "?$select=cat_casehandlinginstructionid,cat_name" +
+                "&$filter=_cat_producttechnology_value eq " + productId +
+                " and _cat_dealer_value eq " + customerId;
+            var dealerResult = await Xrm.WebApi.retrieveMultipleRecords(
+                "cat_casehandlinginstruction",
+                dealerQuery
+            );
+            if (dealerResult.entities.length > 0) {
+                chiRecord = dealerResult.entities[0];
+            }
+        }
+        // Priority 2: Product Technology + Dealer is blank
+        if (!chiRecord) {
+            var defaultQuery =
+                "?$select=cat_casehandlinginstructionid,cat_name" +
+                "&$filter=_cat_producttechnology_value eq " + productId +
+                " and _cat_dealer_value eq null";
+            var defaultResult = await Xrm.WebApi.retrieveMultipleRecords(
+                "cat_casehandlinginstruction",
+                defaultQuery
+            );
+            if (defaultResult.entities.length > 0) {
+                chiRecord = defaultResult.entities[0];
+            }
+        }
+        if (chiRecord) {
+            formContext.getAttribute("cat_casehandlinginstruction").setValue([
+                {
+                    id: chiRecord.cat_casehandlinginstructionid,
+                    name: chiRecord.cat_name,
+                    entityType: "cat_casehandlinginstruction"
+                }
+            ]);
+        } else {
+            formContext.getAttribute("cat_casehandlinginstruction").setValue(null);
+        }
+    } catch (error) {
+        console.error("Error populating CHI:", error);
+    }
+};
+ 
+CAT.Case.showCloneCaseConfirmation = async function (executionContext) {
+	var confirmStrings = { text:"Do you want to Clone the Case?", title:"Clone Case Confirmation" };
+	var confirmOptions = { height: 200, width: 450 };
+	var confirmResults = await Xrm.Navigation.openConfirmDialog(confirmStrings, confirmOptions);
+	return confirmResults.confirmed;
+}
+CAT.Case.onLoad = async function (executionContext) {
+//Is Evlation type
+    var formContext = executionContext.getFormContext();
+    if (formContext.ui.getFormType() === 1) {
+        formContext.getAttribute("cat_casesource").setValue(100000001);
+    }
+    var elevationtype, parentcaseid = null;
+    var attribute = formContext.getAttribute("cat_elevationtype");
+    if (attribute) {
+        elevationtype = attribute.getValue();
+    }
+    attribute = formContext.getAttribute("parentcaseid");
+    if (attribute) {
+        parentcaseid = attribute.getValue();
+    }
+    if(elevationtype && parentcaseid)
+    {
+        var formContext = executionContext.getFormContext();
+		//Open case handup form 
+		CAT.Case.HandupFormSelector(executionContext);
+		//Hide BPF if Case elevation is created
+		formContext.ui.process.setVisible(false);
+		var ruleKeys = ["ElevationRuleOnCaseLoad"];
+        await CATCommon.applyRules(executionContext,ruleKeys);
+        ruleKeys = ["OnChangeCaseElevationTypeRule"];
+        await CATCommon.applyRules(executionContext, ruleKeys);
+    }
+    else
+    {
+        var formContext = executionContext.getFormContext();
+		//Open Enhance Case form 
+		CAT.Case.EnhanceCaseFormSelector(executionContext);
+        var ruleKeys = ["ProductTechnologyRuleOnCaseLoad"];
+        await CATCommon.applyRules(executionContext,ruleKeys);
+        ruleKeys = ["OnChangeCaseProductTechnologyRule"];
+        await CATCommon.applyRules(executionContext, ruleKeys);
+    }
+	CAT.Case.ProductCascadeBPF_OnLoad(executionContext);
+    workstreamOptions = formContext.getAttribute("cat_workstream").getOptions();
+    
+}
+ 
+CAT.Case.ProductCascadeBPF_OnLoad = async function (executionContext) {
+  var formContext = executionContext.getFormContext();
+    var secondaryProductCtrl =
+        formContext.getControl("header_process_cat_secondaryproducttechnology_id");
+    if (secondaryProductCtrl) {
+        secondaryProductCtrl.addPreSearch(function () {
+            var productCtrl =
+                formContext.getControl("header_process_productid");
+            var product =
+                productCtrl.getAttribute().getValue();
+            if (!product) return;
+            var productId =
+                product[0].id.replace(/[{}]/g, "");
+            var filter =
+                "<filter type='and'>" +
+                "<condition attribute='cat_parentproduct' operator='eq' value='" +
+                productId +
+                "' />" +
+                "</filter>";
+            secondaryProductCtrl.addCustomFilter(filter, "product");
+        });
+    }
+    var supportTypeCtrl =
+        formContext.getControl("header_process_cat_supporttype_id");
+    if (supportTypeCtrl) {
+        supportTypeCtrl.addPreSearch(function () {
+            var secondaryProduct =
+                secondaryProductCtrl.getAttribute().getValue();
+            if (!secondaryProduct) return;
+            var secondaryProductId =
+                secondaryProduct[0].id.replace(/[{}]/g, "");
+            var filter =
+                "<filter type='and'>" +
+                "<condition attribute='cat_parentproduct' operator='eq' value='" +
+                secondaryProductId +
+                "' />" +
+                "</filter>";
+            supportTypeCtrl.addCustomFilter(filter, "product");
+        });
+    }
+    var secondarySupportTypeCtrl =
+        formContext.getControl("header_process_cat_secondarysupporttype_id");
+    if (secondarySupportTypeCtrl) {
+        secondarySupportTypeCtrl.addPreSearch(function () {
+            var supportType =
+                supportTypeCtrl.getAttribute().getValue();
+            if (!supportType) return;
+            var supportTypeId =
+                supportType[0].id.replace(/[{}]/g, "");
+            var filter =
+                "<filter type='and'>" +
+                "<condition attribute='cat_parentproduct' operator='eq' value='" +
+                supportTypeId +
+                "' />" +
+                "</filter>";
+            secondarySupportTypeCtrl.addCustomFilter(filter, "product");
+        });
+    }
+}
+ 
+CAT.Case.onChange = async function (executionContext) {
+    var formContext = executionContext.getFormContext();
+    var elevationtype, parentcaseid = null;
+    var attribute = formContext.getAttribute("cat_elevationtype");
+    if (attribute) {
+        elevationtype = attribute.getValue();
+    }
+    attribute = formContext.getAttribute("parentcaseid");
+    if (attribute) {
+        parentcaseid = attribute.getValue();
+    }
+    if(elevationtype && parentcaseid)
+    {
+		//Hide BPF if Case elevation is created
+		formContext.ui.process.setVisible(false);
+		var ruleKeys = ["ElevationRuleOnCaseLoad"];
+        await CATCommon.applyRules(executionContext,ruleKeys);
+        ruleKeys = ["OnChangeCaseElevationTypeRule"];
+        await CATCommon.applyRules(executionContext, ruleKeys);
+		CAT.Case.HandupFormSelector(executionContext);
+    }
+    else
+    {
+        var formContext = executionContext.getFormContext();
+		//Open Enhance Case form 
+		CAT.Case.EnhanceCaseFormSelector(executionContext);
+        var ruleKeys = ["ProductTechnologyRuleOnCaseLoad"];
+        await CATCommon.applyRules(executionContext,ruleKeys);
+        ruleKeys = ["OnChangeCaseProductTechnologyRule"];
+        await CATCommon.applyRules(executionContext, ruleKeys, true);
+    }
+
+    CAT.Case.onProductChange(executionContext);
+}
+CAT.Case.HandupFormSelector =async function(executionContext)
+{
+		var formContext = executionContext.getFormContext();
+        const targetFormGuid = "be39ce30-d384-f111-ab0f-7ced8d6fd14d";
+		const currentForm = formContext.ui.formSelector.getCurrentItem();
+		if (currentForm && currentForm.getId().toLowerCase() !== targetFormGuid.toLowerCase())
+		{
+		const targetForm = formContext.ui.formSelector.items.get(targetFormGuid);      
+		if (targetForm) {   
+		targetForm.navigate();  
+		}
+		else{
+		console.error("Target form not found or not assigned to user's security role.");  
+		}
+		}
+}
+CAT.Case.EnhanceCaseFormSelector =async function(executionContext)
+{
+		var formContext = executionContext.getFormContext();
+        const targetFormGuid = "cd0d48a0-10c6-ec11-a7b5-000d3a58b83a";
+		const currentForm = formContext.ui.formSelector.getCurrentItem();
+		if (currentForm && currentForm.getId().toLowerCase() !== targetFormGuid.toLowerCase())
+		{
+		const targetForm = formContext.ui.formSelector.items.get(targetFormGuid);      
+		if (targetForm) {   
+		targetForm.navigate();  
+		}
+		else{
+		console.error("Target form not found or not assigned to user's security role.");  
+		}
+		}
+}
+CAT.Case.onSave = async function (executionContext) {
+    var formContext = executionContext.getFormContext();
+	var eventArgs = executionContext.getEventArgs();
+// Default Primary Contact to Requested By if blank
+var primaryContact = formContext.getAttribute("cat_primarycontact");
+if(primaryContact){
+    var values = primaryContact.getValue();
+    if(!values || values.length ===0){
+	primaryContact.setValue([100000001]);
+    }
+}
+// Pending Requester Response Validation
+var CASE_PENDING_REQUESTER_RESPONSE = 100000018;
+var ASSET_PENDING_REQUESTER_RESPONSE = 100000006;
+var caseStatus = formContext.getAttribute("statuscode")?.getValue();
+if (caseStatus === CASE_PENDING_REQUESTER_RESPONSE) {
+    var caseId = formContext.data.entity.getId();
+    if (caseId) {
+        caseId = caseId.replace(/[{}]/g, "");
+        var clientUrl = Xrm.Utility.getGlobalContext().getClientUrl();
+        var query =
+            clientUrl +
+            "/api/data/v9.2/cat_assets" +
+            "?$select=statuscode" +
+            "&$top=1" +
+            "&$filter=_cat_case_value eq " + caseId +
+            " and statecode eq 0" +
+            " and statuscode ne " + ASSET_PENDING_REQUESTER_RESPONSE;
+        var request = new XMLHttpRequest();
+        request.open("GET", query, false);
+        request.setRequestHeader("OData-MaxVersion", "4.0");
+        request.setRequestHeader("OData-Version", "4.0");
+        request.setRequestHeader("Accept", "application/json");
+        request.setRequestHeader("Content-Type", "application/json");
+        request.send();
+        if (request.status === 200) {
+            var result = JSON.parse(request.responseText);
+            if (result.value.length > 0) {
+                eventArgs.preventDefault();
+                Xrm.Navigation.openAlertDialog({
+                    title: "Validation Error",
+                    text: "All associated active assets must be in Pending Requester Response status before the case can be moved to Pending Requester Response."
+                });
+                return;
+            }
+        }
+        else {
+            eventArgs.preventDefault();
+            Xrm.Navigation.openAlertDialog({
+                title: "Error",
+                text: request.status + " - " + request.responseText
+            });
+            return;
+        }
+    }
+}
+    var elevationtype, parentcaseid = null;
+    var attribute = formContext.getAttribute("cat_elevationtype");
+    if (attribute) {
+        elevationtype = attribute.getValue();
+    }
+    attribute = formContext.getAttribute("parentcaseid");
+    if (attribute) {
+        parentcaseid = attribute.getValue();
+    }
+    if(elevationtype && parentcaseid)
+    {
+        var formContext = executionContext.getFormContext();
+        var ruleKeys = ["ElevationRuleOnCaseLoad"];
+        await CATCommon.applyRules(executionContext,ruleKeys);
+        ruleKeys = ["OnChangeCaseElevationTypeRule"];
+        await CATCommon.applyRules(executionContext, ruleKeys);
+        //Hide BPF if Case elevation is created
+		formContext.ui.process.setVisible(false);
+		CAT.Case.HandupFormSelector(executionContext);
+    }
+    else
+    {
+        var formContext = executionContext.getFormContext();
+		//Open Enhance Case form 
+		CAT.Case.EnhanceCaseFormSelector(executionContext);
+        var ruleKeys = ["ProductTechnologyRuleOnCaseLoad"];
+        await CATCommon.applyRules(executionContext,ruleKeys);
+        ruleKeys = ["OnChangeCaseProductTechnologyRule"];
+        await CATCommon.applyRules(executionContext, ruleKeys);
+    }
+
+
+
+
+
+
+
+
+
+    //CAT.Case.CaseRouting(executionContext);
+}
+ 
+
+///-------------------------------------------------------------------------------
+CAT.Case.createManualChildCase = async function (primaryControl) {
+    await CAT.Case.openEntityFormPopupRoot(primaryControl, 100000001);
+};
+CAT.Case.createSnowChildCase = async function (primaryControl) {
+    await CAT.Case.openEntityFormPopupRoot(primaryControl, 100000000);
+};
+CAT.Case.createSfdcChildCase = async function (primaryControl) {
+    await CAT.Case.openEntityFormPopupRoot(primaryControl, 100000002);
+};
+CAT.Case.createDynamicsChildCase = async function (primaryControl) {
+    await CAT.Case.openEntityFormPopupRoot(primaryControl, 100000005);
+};
+CAT.Case.createDealerCustomerResolutionChildCase = async function (primaryControl) {
+    await CAT.Case.openEntityFormPopupRoot(primaryControl, 100000004);
+};
+CAT.Case.createDealerConsultationChildCase = async function (primaryControl) {
+    await CAT.Case.openEntityFormPopupRoot(primaryControl, 100000003);
+};
+ 
+
+///-------------------------------------------------------------------------------
+CAT.Case.openEntityFormPopupRoot = async function (primaryControl ,elevationType) {
+    try {
+        var recordId = null;
+        var entityName = null;
+        var formData = {};
+        if (primaryControl) {
+            // Record ID
+            var recordId = primaryControl.data.entity.getId().replace(/[{}]/g, "");
+            //Entity Name
+            entityName = primaryControl.data.entity.getEntityName();
+            formData = await CAT.Case.getformData(primaryControl ,elevationType);
+        }
+        //if (!recordId || !entityName) {
+        if (!entityName) {
+            Xrm.Navigation.openAlertDialog({
+                text: "Record or Entity not found."
+            });
+            return;
+        }
+        //  Call your COMMON function
+        await CAT.Case.openEntityFormPopupDynamic(
+            entityName,
+            formData
+        );
+    } catch (e) {
+        Xrm.Navigation.openAlertDialog({ text: e.message });
+    }
+}
+CAT.Case.getformData = async function (primaryControl ,elevationType) {
+	var formData = {};
+    try {
+        var _elevationType = elevationType;
+        formData["cat_elevationtype"] = _elevationType;
+        var schemaName = "title";
+        var subject = await CAT.Case.getFieldValue(primaryControl, schemaName);
+        formData["title"] = subject;
+        var schemaName = "prioritycode";
+        var prioritycode = await CAT.Case.getFieldValue(primaryControl, schemaName);
+        formData["prioritycode"] = prioritycode.value;
+        // Description
+        var schemaName = "description";
+        var description = await CAT.Case.getFieldValue(primaryControl, schemaName);
+        formData["description"] = description;
+        // Case Resolution Note
+        var schemaName = "cat_caseresolutionnote";
+        var caseresolutionnote = await CAT.Case.getFieldValue(primaryControl, schemaName);
+        formData["cat_caseresolutionnote"] = caseresolutionnote;
+        // Product Lookup
+        var schemaName = "productid";
+        var productid = await CAT.Case.getFieldValue(primaryControl, schemaName);
+        formData["productid"] = productid;
+        var schemaName = "incidentid";
+        var parentcaseid = primaryControl.data.entity.getId().replace(/[{}]/g, "");
+        var parentcaseidName = primaryControl.data.entity.getPrimaryAttributeValue();
+        var entityType = primaryControl.data.entity.getEntityName();
+        formData["parentcaseid"] = {
+            id: parentcaseid,
+            entityType: entityType,
+            name: parentcaseidName
+        };
+        var schemaName = "customerid";
+        var customerid = await CAT.Case.getFieldValue(primaryControl, schemaName);
+        formData["customerid"] = customerid;
+        var schemaName = "primarycontactid";
+        var primarycontactid = await CAT.Case.getFieldValue(primaryControl, schemaName);
+        formData["primarycontactid"] = primarycontactid;
+		var schemaName = "cat_dealercode";
+        var dealercode = await CAT.Case.getFieldValue(primaryControl, schemaName);
+		var schemaName = "cat_dealername";
+        var dealerName = await CAT.Case.getFieldValue(primaryControl, schemaName);
+		if (_elevationType === 100000003 ||
+		_elevationType === 100000004 ) 
+		{
+			formData["cat_dealercode"] = dealercode;
+			formData["cat_dealername"] = dealerName;
+		}
+		//Populate Contact on handup
+		var schemaName = "cat_requestedfrom";
+		var requestedBy = await CAT.Case.getFieldValue(primaryControl, schemaName);
+		if (_elevationType === 100000003 ||_elevationType === 100000004)
+			{
+				if (customerid && customerid.entityType === "contact")
+				{
+					var contactId = customerid.id;
+					var contact = await Xrm.WebApi.retrieveRecord(
+					"contact",
+					contactId,
+					"?$select=cat_persona"
+					);
+					if (contact.cat_persona === 100000003)
+					{
+						formData["primarycontactid"] = customerid;
+							
+					}
+				}
+				else
+				{
+					if(requestedBy)
+					{
+						var requestedById = requestedBy.id;
+						var requestedByContact = await Xrm.WebApi.retrieveRecord(
+						"contact",
+						requestedById,
+						"?$select=cat_persona"
+						);
+						if (requestedByContact.cat_persona === 100000003)
+						{
+							formData["primarycontactid"] = requestedBy;
+								
+						}
+					}
+				}
+			}
+    } catch (e) {
+        console.error(e.message);
+        Xrm.Navigation.openAlertDialog({
+            text: e.message
+        });
+    }
+	return formData;
+};
+CAT.Case.openEntityFormPopupDynamic = async function (entityName, formData) {
+    try {
+        var formId = "be39ce30-d384-f111-ab0f-7ced8d6fd14d";
+ 
+
+        var pageInput = {
+            pageType: "entityrecord",
+            entityName: entityName,
+            //entityId: recordId,
+            formId: formId || null
+        };
+        if (formData) {
+            pageInput.data = formData;
+        }
+        var navigationOptions = {
+            target: 1
+        };
+        Xrm.Navigation.navigateTo(pageInput, navigationOptions);
+//-------------------------------------------------------------------------------
+//var formId = "d6d13eda-977f-f111-ab0f-7ced8d6fd504";
+//    var input = {
+//        pageType: "entityrecord",
+//        entityName: "incident", // Case table
+//        formId: formId
+//    };
+//        var session = await Microsoft.Apm.createSession({
+//            templateName: "Default Session",
+//            title: "New Case Hand-up"
+//        });
+//
+//        await Microsoft.Apm.focusSession(session.sessionId);
+//
+//        var tab = await Microsoft.Apm.createTab(
+//            session.sessionId,
+//            {
+//                title: "New Case Hand-up",
+//                pageInput: input
+//            }
+//        );
+    } catch (e) {
+        console.error(e.message);
+        Xrm.Navigation.openAlertDialog({ text: e.message });
+    }
+}
+CAT.Case.getFieldValue = async function (primaryControl, schemaName) {
+    if (!primaryControl || !schemaName) {
+        return null;
+    }
+    const attribute = primaryControl.getAttribute(schemaName);
+    if (!attribute) {
+        console.warn(`Attribute '${schemaName}' not found on form.`);
+        return null;
+    }
+    const value = attribute.getValue();
+    if (value === null || value === undefined) {
+        return null;
+    }
+    const attributeType = attribute.getAttributeType();
+    switch (attributeType) {
+        case "lookup":
+            return value.length > 0
+                ? {
+                    id: value[0].id.replace(/[{}]/g, ""),
+                    name: value[0].name,
+                    entityType: value[0].entityType
+                }
+                : null;
+        case "optionset":
+            return {
+                value: value,
+                text: attribute.getText()
+            };
+        case "boolean":
+            return value;
+        case "string":
+        case "memo":
+        case "integer":
+        case "double":
+        case "decimal":
+        case "money":
+        case "datetime":
+            return value;
+        default:
+            return value;
+    }
+}
+ 
+
+///-------------------------------------------------------------------------------
+///-------------------------------------------------------------------------------
+///-------------------------------------------------------------------------------
+CAT.Case.onChangeElevationType = async function (executionContext) {
+    var formContext = executionContext.getFormContext();
+    var elevationtype, parentcaseid = null;
+    var attribute = formContext.getAttribute("cat_elevationtype");
+    if (attribute) {
+        elevationtype = attribute.getValue();
+    }
+    attribute = formContext.getAttribute("parentcaseid");
+    if (attribute) {
+        parentcaseid = attribute.getValue();
+    }
+    if(elevationtype && parentcaseid)
+    {
+        var formContext = executionContext.getFormContext();
+        var ruleKeys = ["ElevationRuleOnCaseLoad"];
+        await CATCommon.applyRules(executionContext,ruleKeys);
+        ruleKeys = ["OnChangeCaseElevationTypeRule"];
+        await CATCommon.applyRules(executionContext, ruleKeys, true);
+		CAT.Case.HandupFormSelector(executionContext);
+    }
+    else
+    {
+	CAT.Case.EnhanceCaseFormSelector(executionContext);
+    }
+}
+
+
+///-------------------------------------------------------------------------------
+///-------------------------------------------------------------------------------
+///-------------------------------------------------------------------------------
+
+let bypassPrompt = false;
+
+CAT.Case.CaseRouting = async function(primaryControl) {
+
+    var formContext = primaryControl;
+    //var eventArgs = executionContext.getEventArgs();
+    var formType = formContext.ui.getFormType();
+    
+    // 1 = Create
+    if (formType === 1) {
+        return;
+    }
+    
+    var productChanged = false;
+    var workstreamChanged = false;
+
+    var productAttr = formContext.getAttribute("productid");
+    var workstreamAttr = formContext.getAttribute("cat_workstream");
+
+    if (productAttr) {
+        productChanged = productAttr.getIsDirty();
+    }
+
+    if (workstreamAttr) {
+        workstreamChanged = workstreamAttr.getIsDirty();
+    }
+
+    // No routing fields changed
+    if (!productChanged && !workstreamChanged) {
+        return;
+    }
+
+    formContext.getAttribute("cat_routedon").setValue(new Date());
+    formContext.getAttribute("cat_routedon").setSubmitMode("always");
+
+
+}
+
+
+///-------------------------------------------------------------------------------
+///-------------------------------------------------------------------------------
+///-------------------------------------------------------------------------------
+
+
+/*** Common function to read multiple config keys */
+CAT.Case.getRulesFromConfig = async function(keys,configCache) {
+        try {
+            const filter = keys.map(k => `cat_key eq '${k}'`).join(" or ");
+            const query = `?$select=cat_key,cat_value&$filter=${filter}`;
+            const result = await Xrm.WebApi.retrieveMultipleRecords("cat_ccs_configuration", query);
+            result.entities.forEach(function(record) {
+                try {
+                    configCache[record.cat_key] = record.cat_value ? JSON.parse(record.cat_value) : null;
+                } catch (e) {
+                    console.error("Invalid JSON for config key : " + record.cat_key);
+                }
+            });
+            return configCache;
+        } catch (error) {
+            console.error(error);
+            return {};
+        }
+    }
+    
+
+ 
+/*** Product OnChange Event */
+CAT.Case.onProductChange = async function(executionContext) {
+        const PRODUCT_FIELD = "productid";
+        const WORKSTREAM_FIELD = "cat_workstream";
+        const CONFIG_KEY_PRODUCT_MAP = "WorksstreamMapToProductInCase";
+        const CONFIG_KEY_MULTI_PRODUCT = "WorksstreamMapToMultipleProductInCase";
+        var configCache = {};
+        var formContext = executionContext.getFormContext();
+        var control = formContext.getControl(WORKSTREAM_FIELD);
+        if(control)
+        {
+            control.clearOptions();
+            workstreamOptions.forEach(function (option) { control.addOption(option); });
+        }
+        var product = formContext.getAttribute(PRODUCT_FIELD).getValue();
+        if (!product || product.length === 0) {
+            return;
+        }
+        var productName = product[0].name;
+        await CAT.Case.getRulesFromConfig([CONFIG_KEY_PRODUCT_MAP,CONFIG_KEY_MULTI_PRODUCT], configCache);
+        var productMap = configCache[CONFIG_KEY_PRODUCT_MAP] || [];
+        var multipleProducts = configCache[CONFIG_KEY_MULTI_PRODUCT] || [];
+        // --------------------------------
+        // Multiple Workstream Validation
+        // --------------------------------
+        if (control && multipleProducts.some(p => p.Product.toLowerCase() === productName.toLowerCase())) {
+            control.clearOptions();
+            var productConfig = multipleProducts.find(p => p.Product.toLowerCase() === productName.toLowerCase());
+            var allowedWorkstreams = (productConfig && productConfig.Workstreams) ? productConfig.Workstreams.map(String) : [];
+
+            workstreamOptions.forEach(function (option) {
+                if (option.value === null || option.value === undefined || allowedWorkstreams.includes(option.value.toString())) 
+                {
+                    control.addOption(option);
+                }
+            });
+            formContext.getAttribute(WORKSTREAM_FIELD).setValue(null);
+
+            Xrm.Navigation.openAlertDialog({
+                title: "Workstream Selection",
+                text: "Please ensure you have selected the correct workstream before you route this case"
+            });
+            formContext.getAttribute(WORKSTREAM_FIELD).setValue(null);
+            return;
+        }
+        // --------------------------------
+        // Auto Populate Workstream
+        // --------------------------------
+        var workstreamName = null;
+        productMap.forEach(function(item) {
+            Object.keys(item).forEach(function(key) {
+                if (key.toLowerCase() === productName.toLowerCase()) {
+                    workstreamName = parseInt(item[key], 10);
+                }
+            });
+        });
+        if (!workstreamName) {
+            return;
+        }
+        
+        var attribute = formContext.getAttribute(WORKSTREAM_FIELD);
+        attribute.setValue(workstreamName);
+    }    
+
