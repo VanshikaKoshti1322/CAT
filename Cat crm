@@ -1,0 +1,126 @@
+CAT.Case.onLoad = async function (executionContext) {
+    var formContext = executionContext.getFormContext();
+
+    if (formContext.ui.getFormType() === 1) {
+        var caseSourceAttr = formContext.getAttribute("cat_casesource");
+        if (caseSourceAttr) caseSourceAttr.setValue(100000001);
+    }
+
+    var elevationTypeAttr = formContext.getAttribute("cat_elevationtype");
+    var parentCaseAttr = formContext.getAttribute("parentcaseid");
+    var elevationtype = elevationTypeAttr ? elevationTypeAttr.getValue() : undefined;
+    var parentcaseid = parentCaseAttr ? parentCaseAttr.getValue() : undefined;
+
+    // DEBUG - remove once confirmed working
+    console.log("CAT.Case.onLoad -> formType:", formContext.ui.getFormType(),
+        "currentForm:", formContext.ui.formSelector.getCurrentItem() && formContext.ui.formSelector.getCurrentItem().getId(),
+        "elevationtype attr found:", !!elevationTypeAttr, "value:", elevationtype,
+        "parentcaseid attr found:", !!parentCaseAttr, "value:", parentcaseid);
+
+    if (elevationtype && parentcaseid) {
+        var switchedToHandup = CAT.Case.HandupFormSelector(executionContext);
+        if (switchedToHandup) return;
+
+        formContext.ui.process.setVisible(false);
+        await CATCommon.applyRules(executionContext, ["ElevationRuleOnCaseLoad"]);
+        await CATCommon.applyRules(executionContext, ["OnChangeCaseElevationTypeRule"]);
+    }
+    else {
+        var switchedToEnhance = CAT.Case.EnhanceCaseFormSelector(executionContext);
+        if (switchedToEnhance) return;
+
+        await CATCommon.applyRules(executionContext, ["ProductTechnologyRuleOnCaseLoad"]);
+        await CATCommon.applyRules(executionContext, ["OnChangeCaseProductTechnologyRule"]);
+    }
+
+    CAT.Case.ProductCascadeBPF_OnLoad(executionContext);
+    var workstreamAttr = formContext.getAttribute("cat_workstream");
+    if (workstreamAttr) workstreamOptions = workstreamAttr.getOptions();
+}
+
+
+
+CAT.Case.HandupFormSelector = function (executionContext)
+{
+		var formContext = executionContext.getFormContext();
+        const targetFormGuid = "be39ce30-d384-f111-ab0f-7ced8d6fd14d";
+		const currentForm = formContext.ui.formSelector.getCurrentItem();
+		if (currentForm && currentForm.getId().toLowerCase() !== targetFormGuid.toLowerCase())
+		{
+		const targetForm = formContext.ui.formSelector.items.get(targetFormGuid);
+		if (targetForm) {
+		targetForm.navigate();
+		return true;
+		}
+		else{
+		console.error("Target form not found or not assigned to user's security role.");
+		}
+		}
+		return false;
+}
+
+
+CAT.Case.EnhanceCaseFormSelector = function (executionContext)
+{
+		var formContext = executionContext.getFormContext();
+        const targetFormGuid = "cd0d48a0-10c6-ec11-a7b5-000d3a58b83a";
+		const currentForm = formContext.ui.formSelector.getCurrentItem();
+		if (currentForm && currentForm.getId().toLowerCase() !== targetFormGuid.toLowerCase())
+		{
+		const targetForm = formContext.ui.formSelector.items.get(targetFormGuid);
+		if (targetForm) {
+		targetForm.navigate();
+		return true;
+		}
+		else{
+		console.error("Target form not found or not assigned to user's security role.");
+		}
+		}
+		return false;
+}
+
+
+
+CAT.Case.onChange = async function (executionContext) {
+    var formContext = executionContext.getFormContext();
+    var elevationTypeAttr = formContext.getAttribute("cat_elevationtype");
+    var parentCaseAttr = formContext.getAttribute("parentcaseid");
+    var elevationtype = elevationTypeAttr ? elevationTypeAttr.getValue() : undefined;
+    var parentcaseid = parentCaseAttr ? parentCaseAttr.getValue() : undefined;
+
+    if (elevationtype && parentcaseid)
+    {
+		formContext.ui.process.setVisible(false);
+		await CATCommon.applyRules(executionContext, ["ElevationRuleOnCaseLoad"]);
+        await CATCommon.applyRules(executionContext, ["OnChangeCaseElevationTypeRule"]);
+		if (CAT.Case.HandupFormSelector(executionContext)) return;
+    }
+    else
+    {
+		await CATCommon.applyRules(executionContext, ["ProductTechnologyRuleOnCaseLoad"]);
+        await CATCommon.applyRules(executionContext, ["OnChangeCaseProductTechnologyRule"], true);
+		if (CAT.Case.EnhanceCaseFormSelector(executionContext)) return;
+    }
+
+    await CAT.Case.onProductChange(executionContext);
+}
+
+
+var elevationTypeAttr = formContext.getAttribute("cat_elevationtype");
+    var parentCaseAttr = formContext.getAttribute("parentcaseid");
+    var elevationtype = elevationTypeAttr ? elevationTypeAttr.getValue() : undefined;
+    var parentcaseid = parentCaseAttr ? parentCaseAttr.getValue() : undefined;
+
+    if (elevationtype && parentcaseid)
+    {
+        await CATCommon.applyRules(executionContext, ["ElevationRuleOnCaseLoad"]);
+        await CATCommon.applyRules(executionContext, ["OnChangeCaseElevationTypeRule"]);
+		formContext.ui.process.setVisible(false);
+		CAT.Case.HandupFormSelector(executionContext);
+    }
+    else
+    {
+		await CATCommon.applyRules(executionContext, ["ProductTechnologyRuleOnCaseLoad"]);
+        await CATCommon.applyRules(executionContext, ["OnChangeCaseProductTechnologyRule"]);
+		CAT.Case.EnhanceCaseFormSelector(executionContext);
+    }
