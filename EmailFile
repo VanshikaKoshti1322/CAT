@@ -1,0 +1,616 @@
+var CAT = CAT || {};
+CAT.Email = CAT.Email || {};
+/**
+* Helper function to check if email already exists in CC
+*/
+function emailExistsInCC(ccParties, email) {
+    if (!email || !ccParties || ccParties.length === 0) return false;
+    var normalizedEmail = email.trim().toLowerCase();
+    return ccParties.some(function (party) {
+        return (
+            party.entityType === "unresolvedaddress" &&
+            party.name &&
+            party.name.trim().toLowerCase() === normalizedEmail
+        );
+    });
+}
+CAT.Email.formLoad = async function (executionContext) {
+        try {
+        var formContext = executionContext.getFormContext();
+        var directionCode = formContext.getAttribute("directioncode")?.getValue(); // true = outgoing
+
+        if (formContext.ui.getFormType() !== 1) {
+            if ((formContext.ui.getFormType() !== 2) && (directionCode !== true)) {
+                return;
+            }
+        }
+
+        await requiredToandSubject(formContext);
+
+        var regardingObj = formContext.getAttribute("regardingobjectid").getValue();
+        if (!regardingObj) {
+            console.log("regardingObj not found");
+            return;
+        }
+
+        var regardingValue = regardingObj[0];
+        if (regardingValue.entityType !== "incident") {
+            console.log("regardingObj is not case");
+            return;
+        }
+
+        // Get Case Id
+        var caseId = regardingValue.id.replace("{", "").replace("}", "");
+
+        // TODO: replace cat_elevationtype / cat_assigneeemail with your real logical names
+        var caseQuery =
+            "?$select=emailaddress,cat_additionalemail2,cat_primarycontact,_customerid_value,_cat_requestedfrom_value," +
+            "_parentcaseid_value,cat_elevationtype,cat_assigneeemail";
+
+        var caseObject = await Xrm.WebApi.retrieveRecord("incident", caseId, caseQuery);
+
+        /* ----------------------------------
+           Existing CC Population Logic
+        -----------------------------------*/
+        if (caseObject.emailaddress || caseObject.cat_additionalemail2) {
+            var ccField = formContext.getAttribute("cc");
+            var ccParties = ccField.getValue() || [];
+
+            if (caseObject.emailaddress) {
+                if (!emailExistsInCC(ccParties, caseObject.emailaddress)) {
+                    ccParties.push({
+                        entityType: "unresolvedaddress",
+                        id: "00000000-0000-0000-0000-000000000000",
+                        name: caseObject.emailaddress
+                    });
+                }
+            }
+
+            if (caseObject.cat_additionalemail2) {
+                if (!emailExistsInCC(ccParties, caseObject.cat_additionalemail2)) {
+                    ccParties.push({
+                        entityType: "unresolvedaddress",
+                        id: "00000000-0000-0000-0000-000000000000",
+                        name: caseObject.cat_additionalemail2
+                    });
+                }
+            }
+
+            ccField.setValue(ccParties);
+        }
+
+        /* ----------------------------------
+           TO Population Logic
+        -----------------------------------*/
+        var ELEVATION_TYPE_MANUAL = 100000001;
+
+        var hasParent = !!caseObject._parentcaseid_value;
+        var isManualElevation = caseObject.cat_elevationtype === ELEVATION_TYPE_MANUAL;
+    //    alert("hasParent:" +hasParent+ " isManualElevation:"+isManualElevation);alert(caseObject.cat_assigneeemail);
+        var toField = formContext.getAttribute("to");
+
+        if (hasParent && isManualElevation) {
+            // Parent case + Manual elevation: To = Assignee Email text field
+            if (caseObject.cat_assigneeemail) {
+                toField.setValue([{
+                    entityType: "unresolvedaddress",
+                    id: "00000000-0000-0000-0000-000000000000",
+                    name: caseObject.cat_assigneeemail
+                }]);
+            }
+        } else {
+            // Existing behaviour (no parent case / no elevation type)
+            var primaryContact = caseObject.cat_primarycontact;
+            if (primaryContact && primaryContact.length > 0) {
+                var toParties = [];
+                var isRequestedFor = primaryContact.indexOf(100000000) > -1;
+                var isRequestedBy = primaryContact.indexOf(100000001) > -1;
+
+                // Requested For selected
+                if (isRequestedFor && caseObject._customerid_value) {
+                    var customerType =
+                        caseObject["_customerid_value@Microsoft.Dynamics.CRM.lookuplogicalname"];
+                    var customerName = "";
+
+                    if (customerType === "contact") {
+                        var contact = await Xrm.WebApi.retrieveRecord(
+                            "contact", caseObject._customerid_value, "?$select=fullname");
+                        customerName = contact.fullname;
+                    } else if (customerType === "account") {
+                        var account = await Xrm.WebApi.retrieveRecord(
+                            "account", caseObject._customerid_value, "?$select=name");
+                        customerName = account.name;
+                    }
+
+                    toParties.push({
+                        id: caseObject._customerid_value,
+                        entityType: customerType,
+                        name: customerName
+                    });
+                }
+
+                // Requested By selected
+                if (isRequestedBy && caseObject._cat_requestedfrom_value) {
+                    var requestedBy = await Xrm.WebApi.retrieveRecord(
+                        "contact", caseObject._cat_requestedfrom_value, "?$select=fullname");
+                    toParties.push({
+                        id: caseObject._cat_requestedfrom_value,
+                        entityType: "contact",
+                        name: requestedBy.fullname
+                    });
+                }
+
+                toField.setValue(toParties);
+            }
+        }
+
+        await setEmailTemplateByBrand(formContext);
+
+        //Generate EmailBody
+        var formContext = executionContext.getFormContext();
+        populateEmailBody(formContext);
+
+
+    }
+    catch (error) {
+        console.log(`FormLoad Failed : ${error.message}`);
+        alert(error.message);
+    }
+
+};
+//     try {
+//         debugger;
+//         var formContext = executionContext.getFormContext();
+// 		var directionCode = formContext.getAttribute("directioncode")?.getValue(); // true = outgoing
+//         if (formContext.ui.getFormType() !== 1)
+// 		{
+// 		if((formContext.ui.getFormType() !== 2) && (directionCode!== true) ) {
+//         return;
+// 		}
+// 		}
+//         await requiredToandSubject(formContext);
+//         var regardingObj = formContext.getAttribute("regardingobjectid").getValue();
+//         if (!regardingObj) {
+//             console.log("regardingObj not found");
+//             return;
+//         }
+//         var regardingValue = regardingObj[0];
+//         if (regardingValue.entityType !== "incident") {
+//             console.log("regardingObj is not case");
+//             return;
+//         }
+//         // Get Case Id
+//         var caseId = regardingValue.id.replace("{", "").replace("}", "");
+//         var caseQuery =
+//             "?$select=emailaddress,cat_additionalemail2,cat_primarycontact,_customerid_value,_cat_requestedfrom_value";
+//         var caseObject = await Xrm.WebApi.retrieveRecord(
+//             "incident",
+//             caseId,
+//             caseQuery
+//         );
+//         /* ----------------------------------
+//            Existing CC Population Logic
+//         -----------------------------------*/
+//         if (caseObject.emailaddress || caseObject.cat_additionalemail2) {
+//             var ccField = formContext.getAttribute("cc");
+//             var ccParties = ccField.getValue() || [];
+//             if (caseObject.emailaddress) {
+//                 if (!emailExistsInCC(ccParties, caseObject.emailaddress)) {
+//                     ccParties.push({
+//                         entityType: "unresolvedaddress",
+//                         id: "00000000-0000-0000-0000-000000000000",
+//                         name: caseObject.emailaddress
+//                     });
+//                 }
+//             }
+//             if (caseObject.cat_additionalemail2) {
+//                 if (!emailExistsInCC(ccParties, caseObject.cat_additionalemail2)) {
+//                     ccParties.push({
+//                         entityType: "unresolvedaddress",
+//                         id: "00000000-0000-0000-0000-000000000000",
+//                         name: caseObject.cat_additionalemail2
+//                     });
+//                 }
+//             }
+//             ccField.setValue(ccParties);
+//         }
+//         /* ----------------------------------
+//            TO Population Logic
+//         -----------------------------------*/
+//         var primaryContact = caseObject.cat_primarycontact;
+//         if (primaryContact && primaryContact.length > 0) {
+//             var toField = formContext.getAttribute("to");
+//             // Start fresh and populate only based on Primary Contact
+//             var toParties = [];
+//             var isRequestedFor = primaryContact.indexOf(100000000) > -1;
+//             var isRequestedBy = primaryContact.indexOf(100000001) > -1;
+//             // Requested For selected
+//             if (isRequestedFor && caseObject._customerid_value) {
+//                 var customerType =
+//                     caseObject["_customerid_value@Microsoft.Dynamics.CRM.lookuplogicalname"];
+//                 var customerName = "";
+//                 if (customerType === "contact") {
+//                     var contact = await Xrm.WebApi.retrieveRecord(
+//                         "contact",
+//                         caseObject._customerid_value,
+//                         "?$select=fullname"
+//                     );
+//                     customerName = contact.fullname;
+//                 } else if (customerType === "account") {
+//                     var account = await Xrm.WebApi.retrieveRecord(
+//                         "account",
+//                         caseObject._customerid_value,
+//                         "?$select=name"
+//                     );
+//                     customerName = account.name;
+//                 }
+//                 toParties.push({
+//                     id: caseObject._customerid_value,
+//                     entityType: customerType,
+//                     name: customerName
+//                 });
+//             }
+//             // Requested By selected
+//             if (isRequestedBy && caseObject._cat_requestedfrom_value) {
+//                 var requestedBy = await Xrm.WebApi.retrieveRecord(
+//                     "contact",
+//                     caseObject._cat_requestedfrom_value,
+//                     "?$select=fullname"
+//                 );
+//                 toParties.push({
+//                     id: caseObject._cat_requestedfrom_value,
+//                     entityType: "contact",
+//                     name: requestedBy.fullname
+//                 });
+//             }
+//             toField.setValue(toParties);
+//         }
+
+//         await setEmailTemplateByBrand(formContext);
+//      } 
+//      catch (error) {
+//         console.log(`FormLoad Failed : ${error.message}`);
+//         alert(error.message);
+//     }
+// };
+async function requiredToandSubject(formContext) {
+    var attribute = formContext.getAttribute("to");
+    if (attribute) {
+        attribute.setRequiredLevel("required");
+    }
+    attribute = formContext.getAttribute("subject");
+    if (attribute) {
+        attribute.setRequiredLevel("required");
+    }
+}
+async function setEmailTemplateByBrand(formContext)
+{
+    try
+    {
+        var subjectValue = formContext.getAttribute("subject")?.getValue() || "";
+ 
+        var isReplyEmail =
+            subjectValue.toUpperCase().startsWith("RE:") ||
+            subjectValue.toUpperCase().startsWith("FW:");
+ 
+        console.log("Email Template Processing Started");
+ 
+// Allow Create and Reply/Reply All emails
+var directionCode = formContext.getAttribute("directioncode")?.getValue();
+if ((formContext.ui.getFormType() !== 1) &&
+(formContext.ui.getFormType() !== 2 || directionCode !== true))
+{
+return;
+}
+ 
+        var caseDetails = await getCaseDetails(formContext);
+ 
+        if (!caseDetails)
+        {
+            console.log("Case not found.");
+            return;
+        }
+ 
+        var configRules = await getConfigurationRules();
+ 
+        var matchedRule = findRule(configRules, caseDetails.brandValue);
+ 
+        if (!matchedRule)
+        {
+            console.warn(
+                "No template configuration found for Brand: " + caseDetails.brandValue);
+            return;
+        }
+ 
+        var templateId = matchedRule.emailtemplateid;
+ 
+        var senderQueueId = null;
+ 
+        if (matchedRule.senders && matchedRule.senders.length > 0)
+        {
+            senderQueueId = matchedRule.senders[0];
+        }
+ 
+        var queue = null;
+ 
+        if (senderQueueId)
+        {
+            queue = await getQueue(senderQueueId);
+        }
+ 
+        // ALWAYS SET SENDER
+        if (queue)
+        {
+            setSender(
+                formContext,
+                queue,
+                senderQueueId
+            );
+        }
+ 
+        // REPLY / REPLY ALL / FORWARD
+        if (isReplyEmail)
+        {
+            console.log("Reply/Reply All detected. Template skipped.");
+            return;
+        }
+ 
+        // ONLY FOR NEW EMAILS
+        var instantiatedResult = await instantiateTemplate(
+            templateId,
+            caseDetails.caseId
+        );
+ 
+        var template =
+            instantiatedResult.value &&
+            instantiatedResult.value.length > 0
+                ? instantiatedResult.value[0]
+                : null;
+ 
+        if (!template)
+        {
+            throw new Error("No email content returned from template.");
+        }
+ 
+        var subject = template.subject || "";
+ 
+        var description =
+            template.description ||
+            template.safehtml ||
+            template.body ||
+            "";
+ 
+        setSubject(formContext, subject);
+ 
+        setDescription(
+            formContext,
+            description
+        );
+ 
+        console.log("Email template populated successfully.");
+    }
+    catch (e)
+    {
+        console.error(e);
+ 
+        Xrm.Navigation.openAlertDialog({
+            text: "Unable to load Email Template. " + e.message
+        });
+    }
+}
+
+async function getCaseDetails(formContext)
+{
+	var attempts = 0;
+	while (attempts < 10)
+	{
+		var regarding = formContext.getAttribute("regardingobjectid").getValue();
+		if (
+		regarding && regarding.length > 0 && regarding[0].entityType === "incident")
+		{
+			var caseId = regarding[0].id.replace(/[{}]/g, "");
+			var incident = await Xrm.WebApi.retrieveRecord("incident",caseId,"?$select=cat_brand");
+			return {
+				caseId: caseId,
+				brandValue: incident.cat_brand
+			};
+		}
+		await new Promise(function (resolve)
+		{
+			setTimeout(resolve, 500);
+		});
+		attempts++;
+	}
+	return null;
+};
+async function getConfigurationRules()
+{
+	var result = await Xrm.WebApi.retrieveMultipleRecords(
+		"cat_ccs_configuration",
+		"?$select=cat_value&$filter=cat_key eq 'caseEmailTemplateRules'");
+	if (!result.entities || result.entities.length === 0)
+	{
+		throw new Error(
+			"Configuration record not found.");
+	}
+	var configValue = result.entities[0].cat_value;
+	if (!configValue)
+	{
+		throw new Error(
+			"Configuration value is empty.");
+	}
+	return JSON.parse(configValue);
+};
+function findRule(rules, brandValue)
+{
+	return rules.find(function (rule)
+	{
+		return (
+		String(rule.brand) === String(brandValue));
+	});
+};
+/*async function getEmailTemplate(templateId)
+{
+	return await Xrm.WebApi.retrieveRecord("template",templateId, "?$select=subject,title,safehtml,body");
+	console.log(template);
+};*/
+async function getQueue(queueId)
+{
+	return await Xrm.WebApi.retrieveRecord("queue",queueId,"?$select=name");
+};
+function setSubject(formContext,subject)
+{
+    //debugger;
+    //var div = document.createElement("div");
+    //div.innerHTML = subject;
+    //var subjectline = div.textContent || div.innerText || "";
+	//subjectline = subjectline.replace(/]]>/g, "").trim();
+    var subjectAttr = formContext.getAttribute("subject");
+	if (subjectAttr)
+	{
+		subjectAttr.setValue(subject);
+	}
+};
+function setDescription(formContext,description)
+{
+	var descAttr = formContext.getAttribute("description");
+	if (descAttr)
+	{
+		descAttr.setValue(description);
+	}
+};
+function setSender(formContext,queue,queueId)
+{
+	var fromAttr = formContext.getAttribute("from");
+	if (!fromAttr)
+	{
+		return;
+	}
+	fromAttr.setValue([
+	{
+		id: queueId,
+		entityType: "queue",
+		name: queue.name}
+    ]);
+};
+async function instantiateTemplate(templateId, caseId) {
+    const request = {
+        TemplateId: templateId,
+        ObjectId: caseId,
+        ObjectType: "incident"
+    };
+    const response = await fetch(
+        Xrm.Utility.getGlobalContext().getClientUrl() +
+        "/api/data/v9.2/InstantiateTemplate",
+        {
+            method: "POST",
+            headers: {
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "OData-MaxVersion": "4.0",
+                "OData-Version": "4.0"
+            },
+            body: JSON.stringify(request)
+        }
+    );
+    if (!response.ok) {
+        throw new Error(`Instantiate Template failed: ${response.status}`);
+    }
+    return await response.json();
+}
+
+CAT.Email.UpdateCaseOnMissingInformation = async function (primaryControl) {
+    try {
+       var regarding = primaryControl.getAttribute("regardingobjectid").getValue();
+       var caseId = regarding[0].id.replace(/[{}]/g, "");
+        var subject = primaryControl.getAttribute("subject")?.getValue();
+        if (!subject || !subject.trim().toLowerCase().includes("missing info")) {
+            return;
+        }
+        // Update status
+        var updateData = {
+            statuscode: 100000018 // Pending Requester Response
+        };
+
+        //await Xrm.WebApi.updateRecord("incident", caseId, updateData);
+        console.log("Case updated successfully.");
+        primaryControl.data.refresh(false);
+    } catch (e) {
+        console.error("Error updating case: " + e.message);
+    }
+}
+
+
+
+
+
+// ===== Email body helpers =====
+// ===== Email body from To field =====
+function escHtml(s) {
+  return String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+ 
+function buildEmailBody(name, number, description, ownerName) {
+  return "<div>Hello " + escHtml(name) + ",<br><br>" +
+    "Thank you for contacting Cat Customer Support.<br><br>" +
+    "We received your inquiry, " + escHtml(number) + ", <b>Regarding:</b> " + escHtml(description) + "<br><br>" +
+    "Your inquiry will be reviewed, and we will follow up with you as soon as possible with next steps.<br><br>" +
+    "Regards,<br>" + escHtml(ownerName) + "<br>Cat&reg; Customer Support<br>" +
+    "Note: Please do not provide passwords, credit card numbers or other confidential information via email.<br>" +
+    "For office use only [Case reference data " + escHtml(number) + "].</div>";
+}
+ 
+function populateEmailBody(formContext) {
+ alert("populateEmailBody: called");
+ 
+  var toAttr = formContext.getAttribute("to");
+  var body = formContext.getAttribute("description");
+  var regardingAttr = formContext.getAttribute("regardingobjectid");
+  var regarding = regardingAttr && regardingAttr.getValue();
+ 
+  if (!toAttr || !body) { console.warn("populateEmailBody: 'to' or 'description' missing on this form"); return; }
+  if (!regarding || regarding[0].entityType !== "incident") {
+    console.warn("populateEmailBody: Regarding is empty or not a case");
+    return;
+  }
+ 
+  Xrm.WebApi.retrieveRecord(
+    "incident",
+    regarding[0].id.replace(/[{}]/g, ""),
+    "?$select=ticketnumber,description,_ownerid_value"
+  ).then(function (c) {
+    var number = c.ticketnumber;
+    var caseDescription = c.description;
+    var ownerName = c["_ownerid_value@OData.Community.Display.V1.FormattedValue"] || "";
+    var lastHtml = "";
+ 
+    function apply() {
+      var parties = toAttr.getValue();
+      if (!parties || !parties.length || !parties[0].name) return false; // To not ready yet
+      lastHtml = buildEmailBody(parties[0].name, number, caseDescription, ownerName);
+      body.setValue(lastHtml);
+      console.log("populateEmailBody: body set for", parties[0].name);
+      return true;
+    }
+ 
+    // To is often filled after the form loads, so retry briefly
+    var tries = 0;
+    var timer = setInterval(function () {
+      tries++;
+      if (apply() || tries >= 10) {
+        clearInterval(timer);
+        // Re-apply in case a template or another script overwrites the body later
+        [1000, 2500, 4000].forEach(function (ms) {
+          setTimeout(function () {
+            if (lastHtml && body.getValue() !== lastHtml) body.setValue(lastHtml);
+          }, ms);
+        });
+      }
+    }, 500);
+ 
+    // If someone changes To, refresh the greeting
+    toAttr.addOnChange(apply);
+  }, function (e) {
+    console.error("populateEmailBody: retrieve failed:", e.message);
+  });
+}
